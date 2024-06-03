@@ -1,0 +1,15 @@
+name: ml_template
+channels:
+  - defaults
+  - pytorch
+dependencies:
+  - jupyter
+  - pytorch
+  - cpuonly
+  - torchaudio
+  - torchvision
+  - dill
+  - tqdm
+  - scikit-learn
+  - pip:
+    - wandb
