@@ -1,4 +1,4 @@
-name: ml_template
+name: custom-clap
 channels:
   - defaults
   - pytorch
@@ -11,5 +11,6 @@ dependencies:
   - dill
   - tqdm
   - scikit-learn
+  - pip
   - pip:
     - wandb
