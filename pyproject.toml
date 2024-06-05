@@ -6,8 +6,11 @@ authors = [
     {name= "Leon Alexander Akkad", email = "leon@akkad.at"}
 ]
 requires-python = ">=3.12"
-license = "MIT"
+license = {text = "MIT"}
 readme = "README.md"
+
+[project.urls]
+Repository =  "https://github.com/LeonAlexanderAkkad/Custom-CLAP"
 
 [build-system]
 requires = ["setuptools>=61.0"]
