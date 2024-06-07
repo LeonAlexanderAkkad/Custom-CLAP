@@ -10,7 +10,7 @@ AUDIO_ENCODERS = {"Cnn14"}
 def load_audio_encoder(name: str = "Cnn14") -> type[nn.Module]:
     """Loads respective audio encoder model"""
     if name not in AUDIO_ENCODERS:
-        raise NotImplementedError(f"Audio encoder {name} not implemented. Available encoders: {list(AUDIO_ENCODERS)}")
+        raise NotImplementedError(f"Audio encoder '{name}' not implemented.\nAvailable encoders: {list(AUDIO_ENCODERS)}")
 
     if name == "Cnn14":
         return Cnn14
@@ -20,9 +20,16 @@ class Cnn14(nn.Module):
     """Cnn14 model as described in https://doi.org/10.1109/TASLP.2020.3030497.
     Implementation adapted from https://github.com/qiuqiangkong/audioset_tagging_cnn.
     """
-    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
-                 fmax, classes_num):
-
+    def __init__(
+        self,
+        sample_rate: int,
+        window_size: int,
+        hop_size: int,
+        mel_bins: int,
+        fmin: int,
+        fmax: int,
+        classes_num: int
+    ):
         super().__init__()
 
         window = 'hann'
@@ -85,9 +92,9 @@ class Cnn14(nn.Module):
         x = F.dropout(x, p=0.5, training=self.training)
         x = F.relu_(self.fc1(x))
         embedding = F.dropout(x, p=0.5, training=self.training)
-        clipwise_output = torch.sigmoid(self.fc_audioset(x))
+        clip_wise_output = torch.sigmoid(self.fc_audioset(x))
 
-        output_dict = {'clipwise_output': clipwise_output, 'embedding': embedding}
+        output_dict = {'clip_wise_output': clip_wise_output, 'embedding': embedding}
 
         return output_dict
 
