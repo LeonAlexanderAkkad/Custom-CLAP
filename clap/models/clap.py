@@ -21,6 +21,8 @@ class Clap(nn.Module):
     def __init__(
             self,
             # TextEncoder params
+            text_enc_name: str,
+            text_proj_in: int,
             # AudioEncoder params
             audio_enc_name: str,
             sample_rate: int,
@@ -30,8 +32,8 @@ class Clap(nn.Module):
             f_min: int,
             f_max: int,
             classes_num: int,
+            audio_proj_in: int,
             # Shared params
-            proj_in: int,
             proj_hidden: int,
             proj_out: int
     ):
@@ -43,6 +45,10 @@ class Clap(nn.Module):
 
         Text Parameters
         ---------------
+        text_enc_name : str
+            Name of the pretrained text encoder to load.
+        text_proj_in : int
+            Number of input channels for the projection layer in the text encoder.
 
         Audio Parameters
         ----------------
@@ -62,11 +68,11 @@ class Clap(nn.Module):
             Upper bound for the frequency of the Mel filter bank.
         classes_num : int
             Number of classes in the audio dataset.
+        audio_proj_in : int
+            Number of input channels for the projection layer in the audio encoder.
 
         Shared Parameters
         -----------------
-        proj_in : int
-            Number of input channels for the projection layer.
         proj_hidden : int
             Number of hidden channels for the projection layer.
         proj_out : int
@@ -74,7 +80,12 @@ class Clap(nn.Module):
         """
         super().__init__()
 
-        self.text_encoder = TextEncoder()
+        self.text_encoder = TextEncoder(
+            name=text_enc_name,
+            proj_in=text_proj_in,
+            proj_hidden=proj_hidden,
+            proj_out=proj_out
+        )
 
         self.audio_encoder = AudioEncoder(
             name=audio_enc_name,
@@ -85,7 +96,7 @@ class Clap(nn.Module):
             f_min=f_min,
             f_max=f_max,
             classes_num=classes_num,
-            proj_in=proj_in,
+            proj_in=audio_proj_in,
             proj_hidden=proj_hidden,
             proj_out=proj_out
         )
@@ -103,13 +114,39 @@ class TextEncoder(nn.Module):
     """
     Defines and loads the text encoder for CLAP.
     """
-    def __init__(self):
+    def __init__(
+            self,
+            name: str,
+            proj_in: int,
+            proj_hidden: int,
+            proj_out: int
+    ):
         super().__init__()
-        # TODO: Load pretrained TextEncoder.
 
-    def forward(self, text: torch.Tensor):
-        # TODO: Implement forward pass for TextEncoder.
-        pass
+        self.name = name
+        self.text_encoder = load_audio_encoder(name)
+
+        self.projection = Projection(
+            n_input_features=proj_in,
+            n_hidden_features=proj_hidden,
+            n_output_features=proj_out,
+            activation_function=nn.GELU(),
+            dropout=0.5
+        )
+
+    def forward(self, text: dict[str, torch.Tensor]):
+        if "bert" in self.name:
+            # Get the last hidden state
+            output = self.text_encoder(**text)[0]
+            # Extract CLS token
+            output = output[:, 0, :]
+        else:
+            raise NotImplementedError(f"No forward method implemented for {self.name}")
+
+        # Projects the embedding into the same space as the audio embedding.
+        projected = self.projection(output)
+
+        return projected
 
 
 class AudioEncoder(nn.Module):
