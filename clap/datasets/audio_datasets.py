@@ -2,7 +2,7 @@ from torch.utils.data import Dataset, Subset
 from pathlib import Path
 from abc import ABC, abstractmethod
 
-
+# TODO: Implement audio dataset for clotho with feature fusion
 class AudioDataset(Dataset, ABC):
     """Abstract audio dataset."""
     def __init__(self, directory: str, download: bool = True):
