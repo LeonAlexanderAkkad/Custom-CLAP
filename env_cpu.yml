@@ -1,18 +1,23 @@
 name: custom-clap
 channels:
-  - defaults
   - pytorch
+  - defaults
 dependencies:
+  - python=3.11
   - jupyter
   - pytorch
   - cpuonly
   - torchaudio
   - torchvision
+  - ffmpeg
   - dill
+  - pandas
   - tqdm
   - scikit-learn
   - transformers
+  - ffmpeg
   - pip
   - pip:
     - wandb
     - torchlibrosa
+    - yt_dlp

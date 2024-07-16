@@ -33,7 +33,8 @@ def do_mixup(x, mixup_lambda):
     Returns:
       out: (batch_size, ...)
     """
-    out = (x.transpose(0, -1) * mixup_lambda + torch.flip(x, dims=[0]).transpose(0, -1) * (1 - mixup_lambda)).transpose(0, -1)
+    out = (x.transpose(0, -1) * mixup_lambda + torch.flip(x, dims=[0]).transpose(0, -1) * (1 - mixup_lambda)).transpose(
+        0, -1)
     return out
 
 
@@ -59,6 +60,7 @@ def _ntuple(n):
         if isinstance(x, collections.abc.Iterable):
             return x
         return tuple(repeat(x, n))
+
     return parse
 
 
@@ -928,5 +930,21 @@ class HTSAT_Swin_Transformer(nn.Module):
                 output_dict = self.forward_features(x)
         # x = self.head(x)
         return output_dict
+
+
+class HTSATFactory(nn.Module):
+    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
+                 fmax, classes_num, out_emb):
+        super().__init__()
+
+        # print("parameters are being overidden when using HTSAT")
+        # print("HTSAT only support loading a pretrained model on AudioSet")
+
+        self.htsat = HTSAT_Swin_Transformer(config=config)
+
+    def forward(self, x):
+        out_dict = self.htsat(x)
+        out_dict['embedding'] = out_dict['latent_output']
+        return out_dict
 
 # TODO: Implement factory and think about which parameters to use / change forward function

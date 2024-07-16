@@ -13,6 +13,3 @@ def load_audio_encoder(name: str = "Cnn14") -> type[nn.Module]:
 
     if name == "Cnn14":
         return Cnn14
-
-# TODO: Implement Feature Fusion
-# TODO: Implement HTS-AT

@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from text_encoders import load_text_encoder
 from audio_encoders import load_audio_encoder
 
 
@@ -18,6 +19,7 @@ class Clap(nn.Module):
     logit_scale : nn.Parameter
         Trainable parameter for scaling the logits and used as temperature when calculating the similarity matrix.
     """
+    # TODO: Change parameter list to config dictionaries for audio and text encoder.
     def __init__(
             self,
             # TextEncoder params
@@ -124,7 +126,7 @@ class TextEncoder(nn.Module):
         super().__init__()
 
         self.name = name
-        self.text_encoder = load_audio_encoder(name)
+        self.text_encoder = load_text_encoder(name)
 
         self.projection = Projection(
             n_input_features=proj_in,

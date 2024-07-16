@@ -5,7 +5,7 @@ description = "Custon Contrastive Language-Audio Pretraining (CLAP) model that a
 authors = [
     {name= "Leon Alexander Akkad", email = "leon@akkad.at"}
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 readme = "README.md"
 

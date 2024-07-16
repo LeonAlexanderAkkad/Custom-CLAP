@@ -232,3 +232,6 @@ fabric.properties
 
 # Remove DS_Store file
 **/.DS_Store
+
+# Remove wav files
+*.wav
