@@ -10,6 +10,7 @@ import pandas as pd
 from glob import glob
 
 # TODO: Change every audio to mono!!
+# TODO: Remove unavailable videos from csv!
 
 class AudioCaps(AudioDataset):
     def get_data(self, audio_data_dir: str, metadata_path: str):
