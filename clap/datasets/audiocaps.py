@@ -30,7 +30,6 @@ class AudioCaps(AudioDataset):
                     self.extract_audio_segment(
                         os.path.join(download_dir, f'{youtube_id}.wav'),
                         start_time,
-                        self.duration,
                         os.path.join(audio_data_dir, f'{audiocap_id}.wav')
                         )
                 else:
@@ -44,12 +43,12 @@ class AudioCaps(AudioDataset):
 
         return audio_paths, captions
 
-    def extract_audio_segment(self, file_path: str, start_time: int, duration: int, output_path: str):
+    def extract_audio_segment(self, file_path: str, start_time: int, output_path: str):
         command = [
             'ffmpeg',
             '-i', file_path,
             '-ss', str(start_time),
-            '-t', str(duration),
+            '-t', str(self.duration),
             "-ac", "1",
             output_path
         ]
@@ -71,6 +70,6 @@ class AudioCaps(AudioDataset):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([f'https://www.youtube.com/watch?v={youtube_id}'])
-                return True
+            return True
         except yt_dlp.utils.DownloadError:
             return False

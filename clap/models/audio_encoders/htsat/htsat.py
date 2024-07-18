@@ -734,81 +734,43 @@ class HTSAT_Swin_Transformer(nn.Module):
         for i, layer in enumerate(self.layers):
             x, attn = layer(x)
 
-        if self.config.enable_tscam:
-            # for x
-            x = self.norm(x)
-            B, N, C = x.shape
-            SF = frames_num // (2 ** (len(self.depths) - 1)) // self.patch_stride[0]
-            ST = frames_num // (2 ** (len(self.depths) - 1)) // self.patch_stride[1]
-            x = x.permute(0, 2, 1).contiguous().reshape(B, C, SF, ST)
-            B, C, F, T = x.shape
-            # group 2D CNN
-            c_freq_bin = F // self.freq_ratio
-            x = x.reshape(B, C, F // c_freq_bin, c_freq_bin, T)
-            x = x.permute(0, 1, 3, 2, 4).contiguous().reshape(B, C, c_freq_bin, -1)
+        # for x
+        x = self.norm(x)
+        B, N, C = x.shape
+        SF = frames_num // (2 ** (len(self.depths) - 1)) // self.patch_stride[0]
+        ST = frames_num // (2 ** (len(self.depths) - 1)) // self.patch_stride[1]
+        x = x.permute(0, 2, 1).contiguous().reshape(B, C, SF, ST)
+        B, C, F, T = x.shape
+        # group 2D CNN
+        c_freq_bin = F // self.freq_ratio
+        x = x.reshape(B, C, F // c_freq_bin, c_freq_bin, T)
+        x = x.permute(0, 1, 3, 2, 4).contiguous().reshape(B, C, c_freq_bin, -1)
 
-            # get latent_output
-            latent_output = self.avgpool(torch.flatten(x, 2))
-            latent_output = torch.flatten(latent_output, 1)
+        # get latent_output
+        latent_output = self.avgpool(torch.flatten(x, 2))
+        latent_output = torch.flatten(latent_output, 1)
 
-            # display the attention map, if needed
-            if self.config.htsat_attn_heatmap:
-                # for attn
-                attn = torch.mean(attn, dim=1)
-                attn = torch.mean(attn, dim=1)
-                attn = attn.reshape(B, SF, ST)
-                c_freq_bin = SF // self.freq_ratio
-                attn = attn.reshape(B, SF // c_freq_bin, c_freq_bin, ST)
-                attn = attn.permute(0, 2, 1, 3).contiguous().reshape(B, c_freq_bin, -1)
-                attn = attn.mean(dim=1)
-                attn_max = torch.max(attn, dim=1, keepdim=True)[0]
-                attn_min = torch.min(attn, dim=1, keepdim=True)[0]
-                attn = ((attn * 0.15) + (attn_max * 0.85 - attn_min)) / (attn_max - attn_min)
-                attn = attn.unsqueeze(dim=2)
+        x = self.tscam_conv(x)
+        x = torch.flatten(x, 2)  # B, C, T
 
-            x = self.tscam_conv(x)
-            x = torch.flatten(x, 2)  # B, C, T
+        fpx = interpolate(torch.sigmoid(x).permute(0, 2, 1).contiguous(), 8 * self.patch_stride[1])
 
-            if self.config.htsat_attn_heatmap:
-                fpx = interpolate(torch.sigmoid(x).permute(0, 2, 1).contiguous() * attn, 8 * self.patch_stride[1])
-            else:
-                fpx = interpolate(torch.sigmoid(x).permute(0, 2, 1).contiguous(), 8 * self.patch_stride[1])
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
 
-            x = self.avgpool(x)
-            x = torch.flatten(x, 1)
-
-            if self.config.loss_type == "clip_ce":
-                output_dict = {
-                    'framewise_output': fpx,  # already sigmoided
-                    'clipwise_output': x,
-                    'latent_output': latent_output
-                }
-            else:
-                output_dict = {
-                    'framewise_output': fpx,  # already sigmoided
-                    'clipwise_output': torch.sigmoid(x),
-                    'latent_output': latent_output
-                }
-
+        if self.config.loss_type == "clip_ce":
+            output_dict = {
+                'framewise_output': fpx,  # already sigmoided
+                'clipwise_output': x,
+                'latent_output': latent_output
+            }
         else:
-            x = self.norm(x)  # B N C
-            B, N, C = x.shape
+            output_dict = {
+                'framewise_output': fpx,  # already sigmoided
+                'clipwise_output': torch.sigmoid(x),
+                'latent_output': latent_output
+            }
 
-            fpx = x.permute(0, 2, 1).contiguous().reshape(B, C, frames_num // (2 ** (len(self.depths) + 1)),
-                                                          frames_num // (2 ** (len(self.depths) + 1)))
-            B, C, F, T = fpx.shape
-            c_freq_bin = F // self.freq_ratio
-            fpx = fpx.reshape(B, C, F // c_freq_bin, c_freq_bin, T)
-            fpx = fpx.permute(0, 1, 3, 2, 4).contiguous().reshape(B, C, c_freq_bin, -1)
-            fpx = torch.sum(fpx, dim=2)
-            fpx = interpolate(fpx.permute(0, 2, 1).contiguous(), 8 * self.patch_stride[1])
-            x = self.avgpool(x.transpose(1, 2))  # B C 1
-            x = torch.flatten(x, 1)
-            if self.num_classes > 0:
-                x = self.head(x)
-                fpx = self.head(fpx)
-            output_dict = {'framewise_output': torch.sigmoid(fpx),
-                           'clipwise_output': torch.sigmoid(x)}
         return output_dict
 
     def crop_wav(self, x, crop_size, spe_pos=None):
@@ -932,7 +894,7 @@ class HTSAT_Swin_Transformer(nn.Module):
         return output_dict
 
 
-class HTSATFactory(nn.Module):
+class HTSAT(nn.Module):
     def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
                  fmax, classes_num, out_emb):
         super().__init__()
@@ -940,7 +902,7 @@ class HTSATFactory(nn.Module):
         # print("parameters are being overidden when using HTSAT")
         # print("HTSAT only support loading a pretrained model on AudioSet")
 
-        self.htsat = HTSAT_Swin_Transformer(config=config)
+        self.htsat = HTSAT_Swin_Transformer()
 
     def forward(self, x):
         out_dict = self.htsat(x)
@@ -948,3 +910,4 @@ class HTSATFactory(nn.Module):
         return out_dict
 
 # TODO: Implement factory and think about which parameters to use / change forward function
+# TODO: Complete forward call

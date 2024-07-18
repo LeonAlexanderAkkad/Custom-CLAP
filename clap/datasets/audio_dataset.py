@@ -4,8 +4,7 @@ import random
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, Subset
-
+from torch.utils.data import Dataset
 import torchaudio
 import torchaudio.transforms as T
 
@@ -22,7 +21,6 @@ class AudioDataset(Dataset, ABC):
     def __getitem__(self, index: int):
         """Returns file given an index."""
         sample = self.load_sample(self.data[index])
-        # TODO: Encode Text using the appropriate Embedding!
         target = self.captions[index]
 
         return index, sample, target
@@ -35,24 +33,24 @@ class AudioDataset(Dataset, ABC):
         """Method for loading the given sample such that it can be used for training."""
         # Get the audio and reshape it into mono.
         audio, sample_rate = self.load_audio(audio_path)
-        mono_audio = audio.reshape(-1)
+        audio = audio.reshape(-1)
 
         max_len = self.duration * sample_rate
 
         # Audio is too short and most be extended.
-        if len(mono_audio) < max_len:
+        if len(audio) < max_len:
             # Simply repeat the audio.
-            repeat_factor = int(np.ceil(max_len / len(mono_audio)))
-            mono_audio = mono_audio.repeat(repeat_factor)
+            repeat_factor = int(np.ceil(max_len / len(audio)))
+            audio = audio.repeat(repeat_factor)
             # Remove excess part of audio_time_series.
-            mono_audio = mono_audio[0:max_len]
+            audio = audio[0:max_len]
         # Audio is too long and needs to be cropped or fused.
-        elif len(mono_audio) > max_len:
+        elif len(audio) > max_len:
             # TODO: Implement fusion.
-            start_index = random.randrange(len(mono_audio) - max_len)
-            mono_audio = mono_audio[start_index:start_index + max_len]
+            start_index = random.randrange(len(audio) - max_len)
+            audio = audio[start_index:start_index + max_len]
 
-        return torch.FloatTensor(mono_audio)
+        return torch.FloatTensor(audio)
 
     def load_audio(self, audio_path: str, resample: bool = True):
         """Loads the given audio and resamples it if wanted"""

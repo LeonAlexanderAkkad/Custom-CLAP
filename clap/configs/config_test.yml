@@ -1,0 +1,25 @@
+# TEXT ENCODER CONFIG
+text_model: 'roberta'
+max_len: 77
+text_out: 768
+
+# AUDIO ENCODER CONFIG
+audioenc_name: 'Cnn14'
+sampling_rate: 44100
+window_size: 1024
+hop_size: 320
+mel_bins: 64
+f_min: 50
+f_max: 14000
+# n_fft: 1028 Idk what to do with it yet.
+classes_num: 527 # Not useful for me as I do not utilize the classification output of the audio encoder.
+audio_out: 2048
+
+# PROJECTION CONFIG 
+proj_hidden: 1024
+proj_out: 1024
+# temperature: 0.003 Idk what to do with it yet.
+
+# TRAINING AND EVALUATION CONFIG
+batch_size: 1024
+duration: 5

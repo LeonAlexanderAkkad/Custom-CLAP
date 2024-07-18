@@ -11,13 +11,14 @@ class Cnn14(nn.Module):
     """
     def __init__(
         self,
-        sample_rate: int,
+        sampling_rate: int,
         window_size: int,
         hop_size: int,
         mel_bins: int,
-        fmin: int,
-        fmax: int,
-        classes_num: int
+        f_min: int,
+        f_max: int,
+        classes_num: int,
+        emb_out: int
     ):
         super().__init__()
 
@@ -34,8 +35,8 @@ class Cnn14(nn.Module):
                                                  freeze_parameters=True)
 
         # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
-                                                 n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
+        self.logmel_extractor = LogmelFilterBank(sr=sampling_rate, n_fft=window_size,
+                                                 n_mels=mel_bins, fmin=f_min, fmax=f_max, ref=ref, amin=amin, top_db=top_db,
                                                  freeze_parameters=True)
 
         self.bn0 = nn.BatchNorm2d(64)
@@ -47,8 +48,8 @@ class Cnn14(nn.Module):
         self.conv_block5 = ConvBlock(in_channels=512, out_channels=1024)
         self.conv_block6 = ConvBlock(in_channels=1024, out_channels=2048)
 
-        self.fc1 = nn.Linear(2048, 2048, bias=True)
-        self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
+        self.fc1 = nn.Linear(2048, emb_out, bias=True)
+        self.fc_audioset = nn.Linear(emb_out, classes_num, bias=True)
 
     def forward(self, x: torch.Tensor):
         """
