@@ -9,8 +9,6 @@ import pandas as pd
 
 from glob import glob
 
-# TODO: Change every audio to mono!!
-# TODO: Remove unavailable videos from csv!
 
 class AudioCaps(AudioDataset):
     def get_data(self, audio_data_dir: str, metadata_path: str):
@@ -35,6 +33,10 @@ class AudioCaps(AudioDataset):
                         self.duration,
                         os.path.join(audio_data_dir, f'{audiocap_id}.wav')
                         )
+                else:
+                    # Remove unavailable samples
+                    metadata = metadata[metadata["youtube_id"] != youtube_id]
+                    metadata.to_csv(metadata_path, index=False)
 
         audio_paths = [os.path.abspath(os.path.join(audio_data_dir, youtube_id, ".wav")) for youtube_id in sorted(glob(os.path.join(audio_data_dir, "*.wav")))]
         ids = [os.path.basename(path)[:-4] for path in audio_paths]
@@ -53,8 +55,6 @@ class AudioCaps(AudioDataset):
         ]
 
         subprocess.run(command, check=True)
-
-
 
     def download(self, youtube_id: str, output_dir: str) -> bool:
         ydl_opts = {

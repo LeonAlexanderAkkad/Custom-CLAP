@@ -22,6 +22,7 @@ class AudioDataset(Dataset, ABC):
     def __getitem__(self, index: int):
         """Returns file given an index."""
         sample = self.load_sample(self.data[index])
+        # TODO: Encode Text using the appropriate Embedding!
         target = self.captions[index]
 
         return index, sample, target
