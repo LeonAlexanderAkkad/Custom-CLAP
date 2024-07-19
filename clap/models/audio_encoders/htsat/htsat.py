@@ -694,17 +694,14 @@ class HTSAT_Swin_Transformer(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.maxpool = nn.AdaptiveMaxPool1d(1)
 
-        if self.config.enable_tscam:
-            SF = self.spec_size // (2 ** (len(self.depths) - 1)) // self.patch_stride[0] // self.freq_ratio
-            self.tscam_conv = nn.Conv2d(
-                in_channels=self.num_features,
-                out_channels=self.num_classes,
-                kernel_size=(SF, 3),
-                padding=(0, 1)
-            )
-            self.head = nn.Linear(num_classes, num_classes)
-        else:
-            self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
+        SF = self.spec_size // (2 ** (len(self.depths) - 1)) // self.patch_stride[0] // self.freq_ratio
+        self.tscam_conv = nn.Conv2d(
+            in_channels=self.num_features,
+            out_channels=self.num_classes,
+            kernel_size=(SF, 3),
+            padding=(0, 1)
+        )
+        self.head = nn.Linear(num_classes, num_classes)
 
         self.apply(self._init_weights)
 
@@ -838,29 +835,6 @@ class HTSAT_Swin_Transformer(nn.Module):
             x = x.repeat(repeats=(1, 1, repeat_ratio, 1))
             x = self.reshape_wav2img(x)
             output_dict = self.forward_features(x)
-        elif self.config.enable_repeat_mode:
-            if self.training:
-                cur_pos = random.randint(0, (self.freq_ratio - 1) * self.spec_size - 1)
-                x = self.repeat_wat2img(x, cur_pos)
-                output_dict = self.forward_features(x)
-            else:
-                output_dicts = []
-                for cur_pos in range(0, (self.freq_ratio - 1) * self.spec_size + 1, self.spec_size):
-                    tx = x.clone()
-                    tx = self.repeat_wat2img(tx, cur_pos)
-                    output_dicts.append(self.forward_features(tx))
-                clipwise_output = torch.zeros_like(output_dicts[0]["clipwise_output"]).float().to(x.device)
-                framewise_output = torch.zeros_like(output_dicts[0]["framewise_output"]).float().to(x.device)
-                for d in output_dicts:
-                    clipwise_output += d["clipwise_output"]
-                    framewise_output += d["framewise_output"]
-                clipwise_output = clipwise_output / len(output_dicts)
-                framewise_output = framewise_output / len(output_dicts)
-
-                output_dict = {
-                    'framewise_output': framewise_output,
-                    'clipwise_output': clipwise_output
-                }
         else:
             if x.shape[2] > self.freq_ratio * self.spec_size:
                 if self.training:

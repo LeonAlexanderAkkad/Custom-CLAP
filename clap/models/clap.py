@@ -4,8 +4,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from text_encoders import load_text_encoder
-from audio_encoders import load_audio_encoder
+from .text_encoders import load_text_encoder
+from .audio_encoders import load_audio_encoder
 
 
 class Clap(nn.Module):
@@ -20,28 +20,7 @@ class Clap(nn.Module):
     logit_scale : nn.Parameter
         Trainable parameter for scaling the logits and used as temperature when calculating the similarity matrix.
     """
-
-    # TODO: Change parameter list to config dictionaries for audio and text encoder.
-    def __init__(
-            self,
-            config: dict,
-            # TextEncoder params
-            text_enc_name: str,
-            text_proj_in: int,
-            # AudioEncoder params
-            audio_enc_name: str,
-            sample_rate: int,
-            window_size: int,
-            hop_size: int,
-            mel_bins: int,
-            f_min: int,
-            f_max: int,
-            classes_num: int,
-            audio_proj_in: int,
-            # Shared params
-            proj_hidden: int,
-            proj_out: int
-    ):
+    def __init__(self, config: dict):
         """
         Initializes the CLAP model.
 
@@ -87,9 +66,9 @@ class Clap(nn.Module):
         """
         super().__init__()
 
-        self.text_encoder = TextEncoder(config)
+        self.text_encoder = TextEncoder(config["text_encoder"], config["projection"])
 
-        self.audio_encoder = AudioEncoder(config)
+        self.audio_encoder = AudioEncoder(config["audio_encoder"], config["projection"])
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -105,23 +84,28 @@ class Clap(nn.Module):
 
         return similarity.T
 
+    @classmethod
+    def from_ckpt(cls, ...):
+        pass
+
 
 class TextEncoder(nn.Module):
     """
     Defines and loads the text encoder for CLAP.
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config_text: dict, config_proj: dict):
         super().__init__()
 
-        self.config = config
-        self.name = self.config["name"]
+        self.config_text = config_text
+        self.config_proj = config_proj
+        self.name = self.config_text["name"]
         self.text_encoder, self.tokenizer = load_text_encoder(self.name)
 
         self.projection = Projection(
-            n_input_features=self.config["text_out"],
-            n_hidden_features=self.config["proj_hidden"],
-            n_output_features=self.config["proj_out"],
+            n_input_features=self.config_text["out_size"],
+            n_hidden_features=self.config_proj["hidden_size"],
+            n_output_features=self.config_proj["out_size"],
             activation_function=nn.GELU(),
             dropout=0.5
         )
@@ -134,7 +118,7 @@ class TextEncoder(nn.Module):
                 text,
                 padding="max_length",
                 truncation=True,
-                max_length=self.config["max_length"],
+                max_length=self.config_text["max_length"],
                 return_tensors="pt"
             )
 
@@ -154,16 +138,17 @@ class TextEncoder(nn.Module):
 class AudioEncoder(nn.Module):
     """Defines and loads the audio encoder for CLAP."""
 
-    def __init__(self, config: dict):
+    def __init__(self, config_audio: dict, config_proj: dict):
         super().__init__()
 
-        self.config = config
-        self.audio_encoder = load_audio_encoder(self.config)
+        self.config_audio = config_audio
+        self.config_proj = config_proj
+        self.audio_encoder = load_audio_encoder(self.config_audio)
 
         self.projection = Projection(
-            n_input_features=self.config["audio_out"],
-            n_hidden_features=self.config["proj_hidden"],
-            n_output_features=self.config["proj_out"],
+            n_input_features=self.config_audio["out_size"],
+            n_hidden_features=self.config_proj["hidden_size"],
+            n_output_features=self.config_proj["out_size"],
             activation_function=nn.GELU(),
             dropout=0.5
         )

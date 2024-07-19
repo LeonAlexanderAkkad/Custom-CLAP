@@ -111,10 +111,10 @@ class Trainer(ABC):
                  "train/accuracy": train_acc,
                  "val/loss": val_loss,
                  "val/accuracy": val_acc,
-                 "epoch": epoch}
+                 "epoch": self._current_epoch}
             )
 
-            print(f"\nEpoch: {str(epoch + 1).zfill(len(str(self.epochs)))} (lr={self._lr:.6f}) || "
+            print(f"\nEpoch: {str(self._current_epoch + 1).zfill(len(str(self.epochs)))} (lr={self._lr}) || "
                   f"Validation loss: {val_loss:.4f} || "
                   f"Validation accuracy: {val_acc:.4f} || "
                   f"Training loss: {train_loss:.4f} || "
@@ -125,7 +125,7 @@ class Trainer(ABC):
                 if np.argmin(validation_losses) <= epoch - 5:
                     print(f"\nEarly stopping on epoch {epoch}!")
                     test_loss, test_acc = self.eval_model()
-                    print(f"\nFinal loss: {test_loss}")
+                    print(f"\nFinal loss: {test_loss} || Final test accuracy: {test_acc:.4f}")
                     print("\nDone!")
 
                     return (np.mean(np.array(train_losses)).item(),
@@ -138,17 +138,17 @@ class Trainer(ABC):
             # Either save the best model or adapt the learning rate if necessary.
             if not best_loss or val_loss < best_loss:
                 best_loss = val_loss
-                torch.save({"epoch": epoch,
+                torch.save({"epoch": self._current_epoch,
                             "model_dict": self.model.state_dict(),
                             "optimizer_dict": self.optimizer.state_dict(),
                             "best_val_loss": best_loss}, out_path)
                 print(f"\nModel saved to {out_path}")
             else:
                 if adapt_lr_factor is not None:
-                    self._lr /= adapt_lr_factor
-                    for param_group in self.optimizer.param_groups:
-                        param_group["lr"] = self._lr
-                    print(f"\nNew learning rate: {self._lr:.6f}")
+                    self._lr = self._lr / adapt_lr_factor
+                    for param_group, lr in zip(self.optimizer.param_groups, self._lr):
+                        param_group["lr"] = lr
+                    print(f"\nNew learning rate: {self._lr}")
 
             print("\n" + 100 * "=")
 
@@ -157,7 +157,7 @@ class Trainer(ABC):
         # Necessary to work with model in jupyter notebook after training is done.
         wb.unwatch(self.model)
 
-        print(f"\nFinal loss: {test_loss}")
+        print(f"\nFinal loss: {test_loss} || Final test accuracy: {test_acc:.4f}")
         print("\nDone!")
 
         return (np.mean(np.array(train_losses)).item(),
@@ -235,7 +235,7 @@ class Trainer(ABC):
 
         lr = Trainer.get_lr(self.optimizer)
 
-        for _, data, target in tqdm(self.train_loader, desc=f"Training epoch {self._current_epoch + 1} ({lr=:.6f})"):
+        for _, data, target in tqdm(self.train_loader, desc=f"Training epoch {self._current_epoch + 1} ({lr=})"):
             data, target = data.float().to(self._device), target.float().to(self._device)
 
             output, loss, acc = self.compute_loss_acc(data, target)
@@ -312,8 +312,7 @@ class Trainer(ABC):
     @staticmethod
     def get_lr(optimizer):
         """Get the learning rate used for optimizing."""
-        for param_group in optimizer.param_groups:
-            return param_group['lr']
+        return np.array([param_group['lr'] for param_group in optimizer.param_groups])
 
     @staticmethod
     def get_target_device():
