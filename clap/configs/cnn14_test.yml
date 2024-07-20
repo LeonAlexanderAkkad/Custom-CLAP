@@ -1,13 +1,13 @@
 # TEXT ENCODER CONFIG
 text_encoder:
-    name: 'roberta'
+    name: 'distilroberta-base'
     max_len: 77
     out_size: 768
 
 # AUDIO ENCODER CONFIG
 audio_encoder:
     name: 'Cnn14'
-    pretrained_path: 'C:/Users/leon/Documents/ML_Projects/Custom-CLAP/clap/models/audio_encoders/cnn14/Cnn14_mAP=0.431.pth'
+    pretrained_path: 'C:/Users/leon/Documents/ML_Projects/Custom-CLAP/clap/model/layers/audio_encoders/cnn14/Cnn14_mAP=0.431.pth'
     sampling_rate: 44100
     window_size: 1024
     hop_size: 320

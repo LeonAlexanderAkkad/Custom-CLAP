@@ -1,7 +1,7 @@
 [project]
 name = "clap"
 version = "0.0.1"
-description = "Custon Contrastive Language-Audio Pretraining (CLAP) model that audio concepts from natural language supervision enabling Zero-Shot inference."
+description = "Custon Contrastive Language-Audio Pretraining (CLAP) model that learns audio concepts from natural language supervision enabling Zero-Shot inference."
 authors = [
     {name= "Leon Alexander Akkad", email = "leon@akkad.at"}
 ]

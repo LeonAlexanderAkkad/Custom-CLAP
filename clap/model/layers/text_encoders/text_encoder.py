@@ -30,7 +30,7 @@ class TextEncoder(nn.Module):
         )
 
     def forward(self, text: torch.Tensor):
-        if "bert" in self.name:
+        if "roberta" in self.name:
             # Tokenize text into a dictionary with the shape:
             # {'input_ids': torch.Tensor, 'attention_mask': torch.Tensor, 'token_type_ids': torch.Tensor}
             tokenized_text = self.tokenizer(
@@ -56,8 +56,9 @@ class TextEncoder(nn.Module):
     def load_text_encoder(self) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
         """Loads respective pretrained text encoder model from Huggingface."""
 
-        if self.name not in TEXT_ENCODERS:
-            raise NotImplementedError(
-                f"Text encoder '{self.name}' not implemented.\nAvailable encoders: {list(TEXT_ENCODERS)}")
+        for encoder in TEXT_ENCODERS:
+            if encoder not in self.name:
+                raise NotImplementedError(
+                    f"Text encoder '{self.name}' not implemented.\nAvailable encoders: {list(TEXT_ENCODERS)}")
 
         return AutoModel.from_pretrained(self.name), AutoTokenizer.from_pretrained(self.name)

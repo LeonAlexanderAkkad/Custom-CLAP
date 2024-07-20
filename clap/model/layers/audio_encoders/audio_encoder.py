@@ -3,8 +3,8 @@ from torch import nn
 
 from ..projection import Projection
 
-from cnn14 import Cnn14
-from htsat import HTSAT_Swin_Transformer
+from .cnn14 import Cnn14
+from .htsat import HTSAT_Swin_Transformer
 
 
 AUDIO_ENCODERS = {"Cnn14", "HTSAT"}

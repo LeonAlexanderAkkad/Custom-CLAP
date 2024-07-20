@@ -16,7 +16,7 @@ from typing import Optional, Tuple
 
 from abc import ABC, abstractmethod
 
-from dataset import Dataset
+# from dataset import Dataset
 
 import os
 
@@ -24,7 +24,7 @@ import os
 class Trainer(ABC):
     def __init__(
             self,
-            dataset: Dataset,
+            dataset,
             train_loader: DataLoader,
             val_loader: DataLoader,
             test_loader: DataLoader,

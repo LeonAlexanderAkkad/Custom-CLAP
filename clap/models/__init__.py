@@ -1,1 +1,0 @@
-from .clap import Clap
