@@ -1,1 +1,1 @@
-from .clap_factory import Clap
+from .clap import Clap

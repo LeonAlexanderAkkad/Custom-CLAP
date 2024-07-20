@@ -1,1 +1,0 @@
-from .htsat import HTSAT

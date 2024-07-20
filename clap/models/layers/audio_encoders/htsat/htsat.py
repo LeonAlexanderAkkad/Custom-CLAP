@@ -865,6 +865,7 @@ class HTSAT_Swin_Transformer(nn.Module):
                 x = self.reshape_wav2img(x)
                 output_dict = self.forward_features(x)
         # x = self.head(x)
+        output_dict["embedding"] = output_dict["latent_outptu"]
         return output_dict
 
 

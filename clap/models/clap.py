@@ -1,11 +1,14 @@
+from pathlib import Path
+
+import yaml
+
 import numpy as np
 
 import torch
 from torch import nn
 import torch.nn.functional as F
 
-from .text_encoders import load_text_encoder
-from .audio_encoders import load_audio_encoder
+from .layers import TextEncoder, AudioEncoder
 
 
 class Clap(nn.Module):
@@ -85,106 +88,74 @@ class Clap(nn.Module):
         return similarity.T
 
     @classmethod
-    def from_ckpt(cls, ...):
-        pass
+    def from_ckpt(cls, config: Path | str, ckpt: Path | str) -> "Clap":
+        """
+        Create an instance of Clap from a checkpoint file (e.g. a ckpt file)
+        and a given configuration file (e.g. a yml file).
 
+        Parameters
+        ----------
+        config : Path or str
+            The path to the configuration file.
+            This can be either a `Path` object or a string representing the file path.
 
-class TextEncoder(nn.Module):
-    """
-    Defines and loads the text encoder for CLAP.
-    """
+        ckpt: Path or str
+            The path to the checkpoint file.
+            This can be either a `Path` object or a string representing the file path.
 
-    def __init__(self, config_text: dict, config_proj: dict):
-        super().__init__()
+        Returns
+        -------
+        Clap
+            An instance of the Clap class initialized with the checkpoint
+            and configuration loaded from the specified file.
 
-        self.config_text = config_text
-        self.config_proj = config_proj
-        self.name = self.config_text["name"]
-        self.text_encoder, self.tokenizer = load_text_encoder(self.name)
+        Examples
+        --------
+        >>> clap_instance = Clap.from_ckpt("config.yml", "checkpoint.ckpt")
+        >>> isinstance(clap_instance, Clap)
+        True
+        """
+        clap = cls.from_file(config)
+        cls.load_ckpt(clap, ckpt)
 
-        self.projection = Projection(
-            n_input_features=self.config_text["out_size"],
-            n_hidden_features=self.config_proj["hidden_size"],
-            n_output_features=self.config_proj["out_size"],
-            activation_function=nn.GELU(),
-            dropout=0.5
-        )
+        return clap
 
-    def forward(self, text: torch.Tensor):
-        if "bert" in self.name:
-            # Tokenize text into a dictionary with the shape:
-            # {'input_ids': torch.Tensor, 'attention_mask': torch.Tensor, 'token_type_ids': torch.Tensor}
-            tokenized_text = self.tokenizer(
-                text,
-                padding="max_length",
-                truncation=True,
-                max_length=self.config_text["max_length"],
-                return_tensors="pt"
-            )
+    @classmethod
+    def from_file(cls, config: Path | str) -> "Clap":
+        """
+        Create an instance of Clap from a configuration file (e.g. a yml config file).
 
-            # Get the last hidden state
-            output = self.text_encoder(**tokenized_text)[0]
-            # Extract CLS token
-            output = output[:, 0, :]
-        else:
-            raise NotImplementedError(f"No forward method implemented for {self.name}")
+        Parameters
+        ----------
+        config : Path or str
+            The path to the configuration file.
+            This can be either a `Path` object or a string representing the file path.
 
-        # Projects the embedding into the same space as the audio embedding.
-        projected = self.projection(output)
+        Returns
+        -------
+        Clap
+            An instance of the Clap class initialized with the configuration loaded from the specified file.
 
-        return projected
+        Examples
+        --------
+        >>> clap_instance = Clap.from_file("config.yml")
+        >>> isinstance(clap_instance, Clap)
+        True
 
+        """
+        config = cls.load_config(config)
+        clap = Clap(config)
 
-class AudioEncoder(nn.Module):
-    """Defines and loads the audio encoder for CLAP."""
+        return clap
 
-    def __init__(self, config_audio: dict, config_proj: dict):
-        super().__init__()
+    @staticmethod
+    def load_ckpt(model: nn.Module, ckpt: Path | str):
+        ckpt = torch.load(ckpt)
+        model.load_state_dict(ckpt["model_state_dict"])
 
-        self.config_audio = config_audio
-        self.config_proj = config_proj
-        self.audio_encoder = load_audio_encoder(self.config_audio)
+    @staticmethod
+    def load_config(config: Path | str) -> dict:
+        with open(config, "r") as f:
+            config = yaml.safe_load(f)
 
-        self.projection = Projection(
-            n_input_features=self.config_audio["out_size"],
-            n_hidden_features=self.config_proj["hidden_size"],
-            n_output_features=self.config_proj["out_size"],
-            activation_function=nn.GELU(),
-            dropout=0.5
-        )
-
-    def forward(self, audio: torch.Tensor):
-        # Returns a dictionary with the probabilities of each class being present in the audio and the embedding.
-        output = self.audio_encoder(audio)
-        # Projects the embedding into the same space as the text embedding.
-        projected = self.projection(output["embedding"])
-
-        return projected
-
-
-class Projection(nn.Module):
-    """The final projection layer for both the text and audio encoder of CLAP."""
-
-    def __init__(
-            self,
-            n_input_features: int,
-            n_hidden_features: int,
-            n_output_features: int,
-            activation_function: nn.Module = nn.GELU(),
-            dropout: float = 0.5
-    ):
-        super().__init__()
-
-        self.fc1 = nn.Linear(n_input_features, n_hidden_features)
-        self.fc2 = nn.Linear(n_hidden_features, n_output_features)
-
-        self.act_fn = activation_function
-        self.dropout = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm(n_output_features)
-
-    def forward(self, x: torch.Tensor):
-        out1 = self.fc1(x)
-        out2 = self.dropout(self.fc2(self.act_fn(out1)))
-        out = self.layer_norm(out1 + out2)
-
-        return out
+        return config
