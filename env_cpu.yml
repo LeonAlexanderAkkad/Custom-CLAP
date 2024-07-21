@@ -16,6 +16,7 @@ dependencies:
   - scikit-learn
   - transformers
   - ffmpeg
+  - py7zr
   - pip
   - pip:
     - wandb

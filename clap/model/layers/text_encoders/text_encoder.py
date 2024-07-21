@@ -1,11 +1,10 @@
 import torch
 from torch import nn
 
-import re
-
 from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from ..projection import Projection
+from ....training import Trainer
 
 
 TEXT_ENCODERS = {"RoBERTa"}
@@ -31,24 +30,12 @@ class TextEncoder(nn.Module):
             dropout=0.5
         )
 
-    def forward(self, text: torch.Tensor):
-        if "roberta" in self.name:
-            # Tokenize text into a dictionary with the shape:
-            # {'input_ids': torch.Tensor, 'attention_mask': torch.Tensor, 'token_type_ids': torch.Tensor}
-            tokenized_text = self.tokenizer(
-                text,
-                padding="max_length",
-                truncation=True,
-                max_length=self.config_text["max_length"],
-                return_tensors="pt"
-            )
-
-            # Get the last hidden state
-            output = self.text_encoder(**tokenized_text)[0]
-            # Extract CLS token
-            output = output[:, 0, :]
-        else:
-            raise NotImplementedError(f"No forward method implemented for {self.name}")
+    def forward(self, text: list[str]):
+        tokenized_text = self.tokenize(text)
+        # Get the last hidden state
+        output = self.text_encoder(**tokenized_text)[0]
+        # Extract CLS token
+        output = output[:, 0, :]
 
         # Projects the embedding into the same space as the audio embedding.
         projected = self.projection(output)
@@ -69,8 +56,27 @@ class TextEncoder(nn.Module):
         """Checks if the text encoder is valid."""
         name = self.name.upper()
         for encoder in TEXT_ENCODERS:
-            encoder = re.escape(encoder.upper())
-            if re.search(encoder, name) is not None:
+            if encoder.upper() in name:
                 return True
 
         return False
+
+    def tokenize(self, text: list[str]) -> dict[str, torch.Tensor]:
+        if "ROBERTA" in self.name.upper():
+            # Tokenize text into a dictionary with the shape:
+            # {'input_ids': torch.Tensor, 'attention_mask': torch.Tensor}
+            tokenized_text = self.tokenizer(
+                text,
+                padding="max_length",
+                truncation=True,
+                max_length=self.config_text["max_len"],
+                return_tensors="pt"
+            )
+
+        else:
+            raise NotImplementedError(f"No forward method implemented for {self.name}")
+
+        # Move tensors to device
+        tokenized_text = {key: value.to(Trainer.get_target_device()) for key, value in tokenized_text.items()}
+
+        return tokenized_text

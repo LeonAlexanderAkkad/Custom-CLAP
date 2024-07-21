@@ -1,3 +1,5 @@
+import os
+
 from abc import ABC, abstractmethod
 
 import random
@@ -29,14 +31,15 @@ class AudioDataset(Dataset, ABC):
         self.duration = duration
         self.kind = kind
         self.download = download
-        self.data, self.captions = self.get_data(audiodata_dir, metadata_dir)
+        self.data, self.captions = self.get_data(os.path.abspath(audiodata_dir), os.path.abspath(metadata_dir))
 
     def __getitem__(self, index: int):
         """Returns file given an index."""
-        sample = self.load_sample(self.data[index])
-        target = self.captions[index]
+        audio_path = self.data[index]
+        audio = self.load_sample(audio_path)
+        caption = self.captions[index]
 
-        return index, sample, target
+        return audio_path, caption, audio
 
     def __len__(self):
         """Returns the number of files in the dataset."""

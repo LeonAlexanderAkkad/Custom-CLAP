@@ -1,6 +1,8 @@
 import os
 
-import zipfile
+import shutil
+
+import py7zr
 
 from glob import glob
 
@@ -8,14 +10,13 @@ import pandas as pd
 
 import requests
 
+from tqdm import tqdm
+
 from .audio_dataset import AudioDataset
 
 
-# TODO: Finish Clotho
-
-class ClothoDataset(AudioDataset):
+class Clotho(AudioDataset):
     def get_data(self, audiodata_dir: str, metadata_dir: str):
-
         metadata_path = os.path.join(metadata_dir, f"{self.kind}.csv")
         # Download metadata and audios if necessary
         if self.download:
@@ -32,14 +33,18 @@ class ClothoDataset(AudioDataset):
 
         metadata_df = pd.read_csv(metadata_path)
 
-        # TODO: Finish Clotho and test it, then start training
+        # TODO: Rethink dataset initialization and finish training loop
 
-        audio_paths = [os.path.abspath(os.path.join(audiodata_dir, youtube_id, ".wav")) for youtube_id in
-                       sorted(glob(os.path.join(audiodata_dir, "*.wav")))]
-        ids = [os.path.basename(path)[:-4] for path in audio_paths]
-        captions = [metadata_df[metadata_df["audiocap_id"] == audiocap_id]["caption"] for audiocap_id in ids]
+        audio_paths = sorted(glob(os.path.join(audiodata_dir, "*.wav")))
+        captions = sum([metadata_df[metadata_df["file_name"] == os.path.basename(audio_path)]["caption"].tolist() for audio_path in audio_paths], [])
 
-        return audio_paths, captions
+        # Generate new lists so that each audio file really belongs to 5 captions
+        audio_paths_expanded = []
+
+        for audio_path in audio_paths:
+            audio_paths_expanded.extend([audio_path] * 5)
+
+        return audio_paths_expanded, captions
 
     def download_audio(self, audiodata_dir: str):
         base_url = "https://zenodo.org/record/3490684/files/"
@@ -54,20 +59,25 @@ class ClothoDataset(AudioDataset):
             case _:
                 raise ValueError(f"Unknown kind {self.kind}")
 
-        zip_path = os.path.join(audiodata_dir, self.kind + ".zip")
-
-        response = requests.get(base_url + filename, stream=True)
-        block_size = 1024
-
-        with open(zip_path, 'wb') as file:
-            for data in response.iter_content(block_size):
-                file.write(data)
+        zip_path = os.path.join(audiodata_dir, self.kind + ".7z")
+        self.download_file(base_url + filename, zip_path, f"Downloading {self.kind} audio data")
 
         # Extract downloaded zip file
-        zipfile.ZipFile(zip_path, 'r').extractall(audiodata_dir)
+        py7zr.SevenZipFile(zip_path, 'r').extractall(audiodata_dir)
 
         # Delete zip file
         os.remove(zip_path)
+
+        # Remove redundant directory
+        for root, dirs, files in os.walk(audiodata_dir):
+            if root == audiodata_dir:
+                continue
+            for file_name in files:
+                source_file = os.path.join(root, file_name)
+                destination_file = os.path.join(audiodata_dir, file_name)
+                shutil.move(source_file, destination_file)
+            # Remove the now empty nested directory
+            shutil.rmtree(root)
 
     def download_metadata(self, metadata_path: str):
         base_url = "https://zenodo.org/record/3490684/files/"
@@ -82,12 +92,7 @@ class ClothoDataset(AudioDataset):
             case _:
                 raise ValueError(f"Unknown kind {self.kind}")
 
-        response = requests.get(base_url + filename, stream=True)
-        block_size = 1024
-
-        with open(metadata_path, 'wb') as file:
-            for data in response.iter_content(block_size):
-                file.write(data)
+        self.download_file(base_url + filename, metadata_path, f"Downloading {self.kind} audio metadata")
 
     @staticmethod
     def split_captions(metadata_df: pd.DataFrame) -> pd.DataFrame:
@@ -101,7 +106,21 @@ class ClothoDataset(AudioDataset):
                 "caption_4",
                 "caption_5"
             ],
+            var_name="caption_num",
             value_name="caption"
         )
 
         return metadata_df_melted
+
+    @staticmethod
+    def download_file(file_url: str, destination_path: str, desc: str):
+        response = requests.get(file_url, stream=True)
+        block_size = 1024
+
+        total_size = int(response.headers.get('content-length', 0))
+        progress_bar = tqdm(total=total_size, unit='iB', unit_scale=True, desc=desc)
+        with open(destination_path, 'wb') as file:
+            for data in response.iter_content(block_size):
+                progress_bar.update(len(data))
+                file.write(data)
+        progress_bar.close()

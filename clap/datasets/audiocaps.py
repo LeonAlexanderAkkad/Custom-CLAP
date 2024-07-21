@@ -1,7 +1,10 @@
 import os
+
 import subprocess
 
 import requests
+
+from tqdm import tqdm
 
 from .audio_dataset import AudioDataset
 
@@ -14,7 +17,6 @@ from glob import glob
 
 class AudioCaps(AudioDataset):
     def get_data(self, audiodata_dir: str, metadata_dir: str):
-
         metadata_path = os.path.join(metadata_dir, f"{self.kind}.csv")
         # Download metadata and audios if necessary
         if self.download:
@@ -27,8 +29,9 @@ class AudioCaps(AudioDataset):
             os.makedirs(audiodata_dir, exist_ok=True)
             download_dir = os.path.join(audiodata_dir, "full_audios")
             os.makedirs(download_dir, exist_ok=True)
-            for youtube_id, audiocap_id, start_time in zip(metadata_df["youtube_id"], metadata_df["audiocap_id"],
-                                                           metadata_df["start_time"]):
+            for youtube_id, audiocap_id, start_time in tqdm(zip(metadata_df["youtube_id"], metadata_df["audiocap_id"],
+                                                            metadata_df["start_time"]),
+                                                            desc=f"Downloading youtube audios"):
                 if not os.path.exists(os.path.join(audiodata_dir, f'{audiocap_id}.wav')):
                     success = True
                     if not os.path.exists(os.path.join(download_dir, f'{youtube_id}.wav')):
@@ -42,14 +45,14 @@ class AudioCaps(AudioDataset):
                         )
                     else:
                         # Remove unavailable samples
-                        metadata = metadata_df[metadata_df["youtube_id"] != youtube_id]
-                        metadata.to_csv(metadata_path, index=False)
+                        metadata_df = metadata_df[metadata_df["youtube_id"] != youtube_id]
+                        metadata_df.to_csv(metadata_path, index=False)
 
-        metadata = pd.read_csv(metadata_path)
+        metadata_df = pd.read_csv(metadata_path)
 
-        audio_paths = [os.path.abspath(os.path.join(audiodata_dir, youtube_id, ".wav")) for youtube_id in sorted(glob(os.path.join(audiodata_dir, "*.wav")))]
-        ids = [os.path.basename(path)[:-4] for path in audio_paths]
-        captions = [metadata[metadata["audiocap_id"] == audiocap_id]["caption"] for audiocap_id in ids]
+        audio_paths = sorted(glob(os.path.join(audiodata_dir, "*.wav")), key=lambda x: int(os.path.basename(x)[:-4]))
+        ids = [int(os.path.basename(path)[:-4]) for path in audio_paths]
+        captions = [metadata_df[metadata_df["audiocap_id"] == audiocap_id]["caption"].item() for audiocap_id in ids]
 
         return audio_paths, captions
 
