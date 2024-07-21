@@ -42,27 +42,26 @@ class AudioEncoder(nn.Module):
         """Loads respective audio encoder model"""
         pretrained_path = self.config_audio["pretrained_path"]
 
-        if self.name == "Cnn14":
-            model = Cnn14(
-                sampling_rate=self.config_audio["sampling_rate"],
-                window_size=self.config_audio["window_size"],
-                hop_size=self.config_audio["hop_size"],
-                mel_bins=self.config_audio["mel_bins"],
-                f_min=self.config_audio["f_min"],
-                f_max=self.config_audio["f_max"],
-                classes_num=self.config_audio["classes_num"],
-                emb_out=self.config_audio["out_size"]
-            )
-            if pretrained_path:
-                ckpt = torch.load(pretrained_path)
-                model.load_state_dict(ckpt["model"])
-        elif self.name == "HTSAT":
-            model = HTSAT_Swin_Transformer(config=self.config_audio)
-            if pretrained_path:
-                ckpt = torch.load(pretrained_path)
-                model.load_state_dict(ckpt["model"])
-        else:
-            raise NotImplementedError(f"Audio encoder '{self.name}' not implemented.\n"
-                                      f"Available encoders: {list(AUDIO_ENCODERS)}.")
+        match self.name.upper():
+            case "CNN14":
+                model = Cnn14(
+                    sampling_rate=self.config_audio["sampling_rate"],
+                    window_size=self.config_audio["window_size"],
+                    hop_size=self.config_audio["hop_size"],
+                    mel_bins=self.config_audio["mel_bins"],
+                    f_min=self.config_audio["f_min"],
+                    f_max=self.config_audio["f_max"],
+                    classes_num=self.config_audio["classes_num"],
+                    emb_out=self.config_audio["out_size"]
+                )
+            case "HTSAT":
+                model = HTSAT_Swin_Transformer(config=self.config_audio)
+            case _:
+                raise NotImplementedError(f"Audio encoder '{self.name}' not implemented.\n"
+                                          f"Available encoders: {list(AUDIO_ENCODERS)}.")
+
+        if pretrained_path:
+            ckpt = torch.load(pretrained_path)
+            model.load_state_dict(ckpt["model"])
 
         return model

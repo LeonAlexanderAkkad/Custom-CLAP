@@ -2,7 +2,10 @@ from abc import ABC, abstractmethod
 
 import random
 
+from typing import Literal
+
 import numpy as np
+
 import torch
 from torch.utils.data import Dataset
 import torchaudio
@@ -10,13 +13,23 @@ import torchaudio.transforms as T
 
 
 class AudioDataset(Dataset, ABC):
-    """Simple abstract dataset used for training."""
+    """Simple abstract audio dataset used for training."""
 
-    def __init__(self, audio_data_dir: str, metadata_path: str, sample_rate: int = 44100, duration: int = 10):
-        """Sort and store all files found in given directory."""
-        self.sample_rate = sample_rate
+    def __init__(
+        self,
+        audiodata_dir: str,
+        metadata_dir: str,
+        kind: Literal["train", "val", "test"] = "train",
+        download: bool = False,
+        sampling_rate: int = 44100,
+        duration: int = 10
+    ):
+        """Initialize the audio dataset and download it if needed."""
+        self.sampling_rate = sampling_rate
         self.duration = duration
-        self.data, self.captions = self.get_data(audio_data_dir, metadata_path)
+        self.kind = kind
+        self.download = download
+        self.data, self.captions = self.get_data(audiodata_dir, metadata_dir)
 
     def __getitem__(self, index: int):
         """Returns file given an index."""
@@ -54,15 +67,15 @@ class AudioDataset(Dataset, ABC):
 
     def load_audio(self, audio_path: str, resample: bool = True):
         """Loads the given audio and resamples it if wanted"""
-        audio, sample_rate = torchaudio.load(audio_path)
+        audio, sampling_rate = torchaudio.load(audio_path)
 
-        if resample and sample_rate != self.sample_rate:
-            resampler = T.Resample(sample_rate, self.sample_rate)
+        if resample and sampling_rate != self.sampling_rate:
+            resampler = T.Resample(sampling_rate, self.sampling_rate)
             audio = resampler(audio)
-            sample_rate = self.sample_rate
+            sampling_rate = self.sampling_rate
 
-        return audio, sample_rate
+        return audio, sampling_rate
 
     @abstractmethod
-    def get_data(self, audio_data_dir: str, metadata_path: str):
+    def get_data(self, audio_data_dir: str, metadata_dir: str):
         raise NotImplementedError

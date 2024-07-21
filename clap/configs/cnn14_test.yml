@@ -14,7 +14,7 @@ audio_encoder:
     mel_bins: 64
     f_min: 50
     f_max: 14000
-    # n_fft: 1028 Idk what to do with it yet.
+    # n_fft: 1028 IDK what to do with it yet.
     classes_num: 527 # AudioSet classes. Not useful for me as I do not utilize the classification output of the audio encoder.
     out_size: 2048
 
@@ -22,7 +22,7 @@ audio_encoder:
 projection:
     hidden_size: 1024
     out_size: 1024
-    # temperature: 0.003 Idk what to do with it yet.
+    # temperature: 0.003 IDK what to do with it yet.
 
 # TRAINING AND EVALUATION CONFIG
 batch_size: 1024

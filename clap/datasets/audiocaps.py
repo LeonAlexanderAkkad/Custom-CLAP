@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+import requests
+
 from .audio_dataset import AudioDataset
 
 import yt_dlp
@@ -11,33 +13,41 @@ from glob import glob
 
 
 class AudioCaps(AudioDataset):
-    def get_data(self, audio_data_dir: str, metadata_path: str):
+    def get_data(self, audiodata_dir: str, metadata_dir: str):
+
+        metadata_path = os.path.join(metadata_dir, f"{self.kind}.csv")
+        # Download metadata and audios if necessary
+        if self.download:
+            # Download metadata and create directory if necessary
+            os.makedirs(metadata_dir, exist_ok=True)
+            self.download_metadata(metadata_path)
+            metadata_df = pd.read_csv(metadata_path)
+
+            # Download audios and create directories if necessary
+            os.makedirs(audiodata_dir, exist_ok=True)
+            download_dir = os.path.join(audiodata_dir, "full_audios")
+            os.makedirs(download_dir, exist_ok=True)
+            for youtube_id, audiocap_id, start_time in zip(metadata_df["youtube_id"], metadata_df["audiocap_id"],
+                                                           metadata_df["start_time"]):
+                if not os.path.exists(os.path.join(audiodata_dir, f'{audiocap_id}.wav')):
+                    success = True
+                    if not os.path.exists(os.path.join(download_dir, f'{youtube_id}.wav')):
+                        success = self.download_audio(youtube_id, download_dir)
+                    if success:
+                        # Extract audio segment using the given start time in the metadata
+                        self.extract_audio_segment(
+                            os.path.join(download_dir, f'{youtube_id}.wav'),
+                            start_time,
+                            os.path.join(audiodata_dir, f'{audiocap_id}.wav')
+                        )
+                    else:
+                        # Remove unavailable samples
+                        metadata = metadata_df[metadata_df["youtube_id"] != youtube_id]
+                        metadata.to_csv(metadata_path, index=False)
+
         metadata = pd.read_csv(metadata_path)
 
-        # Download and create audio files if necessary.
-        # if not os.path.exists(audio_data_dir):
-        # Create directory and download videos.
-        os.makedirs(audio_data_dir, exist_ok=True)
-        download_dir = os.path.join(os.path.dirname(audio_data_dir), "full_audios")
-        os.makedirs(download_dir, exist_ok=True)
-        for youtube_id, audiocap_id, start_time in zip(metadata["youtube_id"], metadata["audiocap_id"], metadata["start_time"]):
-            if not os.path.exists(os.path.join(audio_data_dir, f'{audiocap_id}.wav')):
-                success = True
-                if not os.path.exists(os.path.join(download_dir, f'{youtube_id}.wav')):
-                    success = self.download(youtube_id, download_dir)
-                if success:
-                    # Extract audio segment using the given start time in the metadata
-                    self.extract_audio_segment(
-                        os.path.join(download_dir, f'{youtube_id}.wav'),
-                        start_time,
-                        os.path.join(audio_data_dir, f'{audiocap_id}.wav')
-                        )
-                else:
-                    # Remove unavailable samples
-                    metadata = metadata[metadata["youtube_id"] != youtube_id]
-                    metadata.to_csv(metadata_path, index=False)
-
-        audio_paths = [os.path.abspath(os.path.join(audio_data_dir, youtube_id, ".wav")) for youtube_id in sorted(glob(os.path.join(audio_data_dir, "*.wav")))]
+        audio_paths = [os.path.abspath(os.path.join(audiodata_dir, youtube_id, ".wav")) for youtube_id in sorted(glob(os.path.join(audiodata_dir, "*.wav")))]
         ids = [os.path.basename(path)[:-4] for path in audio_paths]
         captions = [metadata[metadata["audiocap_id"] == audiocap_id]["caption"] for audiocap_id in ids]
 
@@ -55,7 +65,7 @@ class AudioCaps(AudioDataset):
 
         subprocess.run(command, check=True)
 
-    def download(self, youtube_id: str, output_dir: str) -> bool:
+    def download_audio(self, youtube_id: str, output_dir: str) -> bool:
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': os.path.join(output_dir, f'{youtube_id}.%(ext)s'),
@@ -73,3 +83,13 @@ class AudioCaps(AudioDataset):
             return True
         except yt_dlp.utils.DownloadError:
             return False
+
+    def download_metadata(self, metadata_path: str):
+        base_url = "https://raw.githubusercontent.com/cdjkim/audiocaps/master/dataset/"
+
+        response = requests.get(base_url + self.kind + ".csv", stream=True)
+        block_size = 1024
+
+        with open(metadata_path, 'wb') as file:
+            for data in response.iter_content(block_size):
+                file.write(data)

@@ -1,12 +1,14 @@
 import torch
 from torch import nn
 
+import re
+
 from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from ..projection import Projection
 
 
-TEXT_ENCODERS = {"roberta"}
+TEXT_ENCODERS = {"RoBERTa"}
 
 
 class TextEncoder(nn.Module):
@@ -56,9 +58,19 @@ class TextEncoder(nn.Module):
     def load_text_encoder(self) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
         """Loads respective pretrained text encoder model from Huggingface."""
 
-        for encoder in TEXT_ENCODERS:
-            if encoder not in self.name:
-                raise NotImplementedError(
-                    f"Text encoder '{self.name}' not implemented.\nAvailable encoders: {list(TEXT_ENCODERS)}")
+        if not self.is_valid():
+            raise NotImplementedError(
+                f"Text encoder '{self.name}' not implemented.\nAvailable encoders: {list(TEXT_ENCODERS)}"
+            )
 
         return AutoModel.from_pretrained(self.name), AutoTokenizer.from_pretrained(self.name)
+
+    def is_valid(self) -> bool:
+        """Checks if the text encoder is valid."""
+        name = self.name.upper()
+        for encoder in TEXT_ENCODERS:
+            encoder = re.escape(encoder.upper())
+            if re.search(encoder, name) is not None:
+                return True
+
+        return False

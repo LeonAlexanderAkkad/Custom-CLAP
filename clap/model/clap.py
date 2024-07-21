@@ -17,9 +17,9 @@ class Clap(nn.Module):
     Attributes
     ----------
     text_encoder : nn.Module
-        The pretrained text encoder.
+        The pretrained text encoder. Available encoders: RoBERTa.
     audio_encoder : nn.Module
-        The pretrained audio encoder.
+        The pretrained audio encoder. Available encoders: Cnn14, HTSAT.
     logit_scale : nn.Parameter
         Trainable parameter for scaling the logits and used as temperature when calculating the similarity matrix.
     """
