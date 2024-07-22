@@ -13,19 +13,19 @@ AUDIO_ENCODERS = {"Cnn14", "HTSAT"}
 class AudioEncoder(nn.Module):
     """Defines and loads the audio encoder for CLAP."""
 
-    def __init__(self, config_audio: dict, config_proj: dict):
+    def __init__(self, audio_cfg: dict, proj_cfg: dict):
         super().__init__()
 
-        self.config_audio = config_audio
-        self.config_proj = config_proj
+        self.audio_cfg = audio_cfg
+        self.proj_cfg = proj_cfg
         self.name = self.config_audio["name"]
 
         self.audio_encoder = self.load_audio_encoder()
 
         self.projection = Projection(
-            n_input_features=self.config_audio["out_size"],
-            n_hidden_features=self.config_proj["hidden_size"],
-            n_output_features=self.config_proj["out_size"],
+            n_input_features=self.audio_cfg["out_size"],
+            n_hidden_features=self.proj_cfg["hidden_size"],
+            n_output_features=self.proj_cfg["out_size"],
             activation_function=nn.GELU(),
             dropout=0.5
         )
@@ -45,14 +45,14 @@ class AudioEncoder(nn.Module):
         match self.name.upper():
             case "CNN14":
                 model = Cnn14(
-                    sampling_rate=self.config_audio["sampling_rate"],
-                    window_size=self.config_audio["window_size"],
-                    hop_size=self.config_audio["hop_size"],
-                    mel_bins=self.config_audio["mel_bins"],
-                    f_min=self.config_audio["f_min"],
-                    f_max=self.config_audio["f_max"],
-                    classes_num=self.config_audio["classes_num"],
-                    emb_out=self.config_audio["out_size"]
+                    sampling_rate=self.audio_cfg["sampling_rate"],
+                    window_size=self.audio_cfg["window_size"],
+                    hop_size=self.audio_cfg["hop_size"],
+                    mel_bins=self.audio_cfg["mel_bins"],
+                    f_min=self.audio_cfg["f_min"],
+                    f_max=self.audio_cfg["f_max"],
+                    classes_num=self.audio_cfg["classes_num"],
+                    emb_out=self.audio_cfg["out_size"]
                 )
             case "HTSAT":
                 model = HTSAT_Swin_Transformer(config=self.config_audio)

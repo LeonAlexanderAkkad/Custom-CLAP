@@ -13,19 +13,19 @@ TEXT_ENCODERS = {"RoBERTa"}
 class TextEncoder(nn.Module):
     """Defines and loads the text encoder for CLAP."""
 
-    def __init__(self, config_text: dict, config_proj: dict):
+    def __init__(self, text_cfg: dict, proj_cfg: dict):
         super().__init__()
 
-        self.config_text = config_text
-        self.config_proj = config_proj
+        self.text_cfg = text_cfg
+        self.proj_cfg = proj_cfg
         self.name = self.config_text["name"]
 
         self.text_encoder, self.tokenizer = self.load_text_encoder()
 
         self.projection = Projection(
-            n_input_features=self.config_text["out_size"],
-            n_hidden_features=self.config_proj["hidden_size"],
-            n_output_features=self.config_proj["out_size"],
+            n_input_features=self.text_cfg["out_size"],
+            n_hidden_features=self.proj_cfg["hidden_size"],
+            n_output_features=self.proj_cfg["out_size"],
             activation_function=nn.GELU(),
             dropout=0.5
         )
@@ -69,7 +69,7 @@ class TextEncoder(nn.Module):
                 text,
                 padding="max_length",
                 truncation=True,
-                max_length=self.config_text["max_len"],
+                max_length=self.text_cfg["max_len"],
                 return_tensors="pt"
             )
 

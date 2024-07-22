@@ -28,7 +28,7 @@ class Cnn14(nn.Module):
         ref = 1.0
         amin = 1e-10
         top_db = None
-
+        # TODO: Change to complete feature fusion.
         # Spectrogram extractor
         self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
                                                  win_length=window_size, window=window, center=center, pad_mode=pad_mode,

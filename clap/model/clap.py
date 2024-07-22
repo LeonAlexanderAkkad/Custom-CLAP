@@ -23,7 +23,7 @@ class Clap(nn.Module):
     logit_scale : nn.Parameter
         Trainable parameter for scaling the logits and used as temperature when calculating the similarity matrix.
     """
-    def __init__(self, config: dict):
+    def __init__(self, config: dict | Path | str):
         """
         Initializes the CLAP model.
 
@@ -69,6 +69,8 @@ class Clap(nn.Module):
         """
         super().__init__()
 
+        config = self.load_config(config)
+
         self.text_encoder = TextEncoder(config["text_encoder"], config["projection"])
 
         self.audio_encoder = AudioEncoder(config["audio_encoder"], config["projection"])
@@ -88,16 +90,16 @@ class Clap(nn.Module):
         return similarity.T
 
     @classmethod
-    def from_ckpt(cls, config: Path | str, ckpt: Path | str) -> "Clap":
+    def from_ckpt(cls, config: dict | Path | str, ckpt: Path | str) -> "Clap":
         """
         Create an instance of Clap from a checkpoint file (e.g. a ckpt file)
         and a given configuration file (e.g. a yml file).
 
         Parameters
         ----------
-        config : Path or str
-            The path to the configuration file.
-            This can be either a `Path` object or a string representing the file path.
+        config : dict or Path or str
+            Configuration dictionary or the path to the configuration file,
+            this can be either a `Path` object or a string representing the file path.
 
         ckpt: Path or str
             The path to the checkpoint file.
@@ -115,36 +117,8 @@ class Clap(nn.Module):
         >>> isinstance(clap_instance, Clap)
         True
         """
-        clap = cls.from_file(config)
+        clap = cls(config)
         cls.load_ckpt(clap, ckpt)
-
-        return clap
-
-    @classmethod
-    def from_file(cls, config: Path | str) -> "Clap":
-        """
-        Create an instance of Clap from a configuration file (e.g. a yml config file).
-
-        Parameters
-        ----------
-        config : Path or str
-            The path to the configuration file.
-            This can be either a `Path` object or a string representing the file path.
-
-        Returns
-        -------
-        Clap
-            An instance of the Clap class initialized with the configuration loaded from the specified file.
-
-        Examples
-        --------
-        >>> clap_instance = Clap.from_file("config.yml")
-        >>> isinstance(clap_instance, Clap)
-        True
-
-        """
-        config = cls.load_config(config)
-        clap = Clap(config)
 
         return clap
 
@@ -152,10 +126,3 @@ class Clap(nn.Module):
     def load_ckpt(model: nn.Module, ckpt: Path | str):
         ckpt = torch.load(ckpt)
         model.load_state_dict(ckpt["model_state_dict"])
-
-    @staticmethod
-    def load_config(config: Path | str) -> dict:
-        with open(config, "r") as f:
-            config = yaml.safe_load(f)
-
-        return config

@@ -16,6 +16,8 @@ from typing import Optional, Tuple
 
 from abc import ABC, abstractmethod
 
+from .utils import get_target_device
+
 # from dataset import Dataset
 
 import os
@@ -42,7 +44,7 @@ class Trainer(ABC):
         self.loss_fun = loss_fun
         self._lr = Trainer.get_lr(self.optimizer)
         self._epochs = epochs
-        self._device = Trainer.get_target_device()
+        self._device = get_target_device()
         self._global_train_step = 0
         self._global_val_step = 0
         self._global_test_step = 0
@@ -313,8 +315,3 @@ class Trainer(ABC):
     def get_lr(optimizer):
         """Get the learning rate used for optimizing."""
         return np.array([param_group['lr'] for param_group in optimizer.param_groups])
-
-    @staticmethod
-    def get_target_device():
-        """Get the target device where training takes place."""
-        return torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
