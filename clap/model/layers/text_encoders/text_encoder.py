@@ -4,7 +4,7 @@ from torch import nn
 from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from ..projection import Projection
-from ....training import Trainer
+from ....utils import get_target_device
 
 
 TEXT_ENCODERS = {"RoBERTa"}
@@ -18,7 +18,7 @@ class TextEncoder(nn.Module):
 
         self.text_cfg = text_cfg
         self.proj_cfg = proj_cfg
-        self.name = self.config_text["name"]
+        self.name = self.text_cfg["name"]
 
         self.text_encoder, self.tokenizer = self.load_text_encoder()
 
@@ -77,6 +77,6 @@ class TextEncoder(nn.Module):
             raise NotImplementedError(f"No forward method implemented for {self.name}")
 
         # Move tensors to device
-        tokenized_text = {key: value.to(Trainer.get_target_device()) for key, value in tokenized_text.items()}
+        tokenized_text = {key: value.to(get_target_device()) for key, value in tokenized_text.items()}
 
         return tokenized_text

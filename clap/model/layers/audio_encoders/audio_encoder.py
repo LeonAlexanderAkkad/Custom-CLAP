@@ -18,7 +18,7 @@ class AudioEncoder(nn.Module):
 
         self.audio_cfg = audio_cfg
         self.proj_cfg = proj_cfg
-        self.name = self.config_audio["name"]
+        self.name = self.audio_cfg["name"]
 
         self.audio_encoder = self.load_audio_encoder()
 
@@ -40,19 +40,20 @@ class AudioEncoder(nn.Module):
 
     def load_audio_encoder(self) -> nn.Module:
         """Loads respective audio encoder model"""
-        pretrained_path = self.config_audio["pretrained_path"]
+        pretrained_path = self.audio_cfg["pretrained_path"]
 
         match self.name.upper():
             case "CNN14":
                 model = Cnn14(
-                    sampling_rate=self.audio_cfg["sampling_rate"],
-                    window_size=self.audio_cfg["window_size"],
-                    hop_size=self.audio_cfg["hop_size"],
-                    mel_bins=self.audio_cfg["mel_bins"],
-                    f_min=self.audio_cfg["f_min"],
-                    f_max=self.audio_cfg["f_max"],
-                    classes_num=self.audio_cfg["classes_num"],
-                    emb_out=self.audio_cfg["out_size"]
+                    # sampling_rate=self.audio_cfg["sampling_rate"],
+                    # window_size=self.audio_cfg["window_size"],
+                    # hop_size=self.audio_cfg["hop_size"],
+                    # mel_bins=self.audio_cfg["mel_bins"],
+                    # f_min=self.audio_cfg["f_min"],
+                    # f_max=self.audio_cfg["f_max"],
+                    # classes_num=self.audio_cfg["classes_num"],
+                    # emb_out=self.audio_cfg["out_size"],
+                    config=self.audio_cfg
                 )
             case "HTSAT":
                 model = HTSAT_Swin_Transformer(config=self.config_audio)
@@ -62,6 +63,11 @@ class AudioEncoder(nn.Module):
 
         if pretrained_path:
             ckpt = torch.load(pretrained_path)
-            model.load_state_dict(ckpt["model"])
+            # pop_keys = list(ckpt["model"].keys())
+            # for key in pop_keys:
+            #     if key.startswith("spectrogram_extractor.") or key.startswith("logmel_extractor."):
+            #         ckpt["model"].pop(key)
+
+            model.load_state_dict(ckpt["model"], strict=False)
 
         return model

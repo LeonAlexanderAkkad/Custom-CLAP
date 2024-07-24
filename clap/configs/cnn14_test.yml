@@ -10,6 +10,7 @@ audio:
     pretrained_path: 'C:/Users/leon/Documents/ML_Projects/Custom-CLAP/clap/model/layers/audio_encoders/cnn14/Cnn14_mAP=0.431.pth'
     sampling_rate: 44100
     duration: 10
+    use_fusion: True
     window_size: 1024
     hop_size: 320
     mel_bins: 64
@@ -25,5 +26,6 @@ projection:
     # temperature: 0.003 IDK what to do with it yet.
 
 # TRAINING AND EVALUATION CONFIG
-batch_size: 1024
-duration: 5
+learning_rate: 0.0001
+batch_size: 64
+epochs: 5

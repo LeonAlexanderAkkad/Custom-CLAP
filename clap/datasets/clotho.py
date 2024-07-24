@@ -15,25 +15,28 @@ from tqdm import tqdm
 from .audio_dataset import AudioDataset
 
 
+BASE_URL = "https://zenodo.org/record/4783391/files/"
+DATASET_DIR_BASE = os.path.join("clap", "datasets", "clotho")
+
+
 class Clotho(AudioDataset):
-    def get_data(self, audiodata_dir: str, metadata_dir: str):
-        metadata_path = os.path.join(metadata_dir, f"{self.kind}.csv")
+    def get_data(self):
+        metadata_path = os.path.join(DATASET_DIR_BASE, f"{self.kind}.csv")
+        audiodata_dir = os.path.join(DATASET_DIR_BASE, f"{self.kind}_audio")
         # Download metadata and audios if necessary
         if self.download:
             # Download metadata, create directory if necessary and split the caption to create new samples
-            os.makedirs(metadata_dir, exist_ok=True)
-            self.download_metadata(metadata_path)
+            os.makedirs(DATASET_DIR_BASE, exist_ok=True)
+            self.__download_metadata(metadata_path)
             metadata_df = pd.read_csv(metadata_path)
             metadata_df = self.split_captions(metadata_df)
             metadata_df.to_csv(metadata_path, index=False)
 
             # Download audios and create directories if necessary
             os.makedirs(audiodata_dir, exist_ok=True)
-            self.download_audio(audiodata_dir)
+            self.__download_audio(audiodata_dir)
 
         metadata_df = pd.read_csv(metadata_path)
-
-        # TODO: Rethink dataset initialization and finish training loop
 
         audio_paths = sorted(glob(os.path.join(audiodata_dir, "*.wav")))
         captions = sum([metadata_df[metadata_df["file_name"] == os.path.basename(audio_path)]["caption"].tolist() for audio_path in audio_paths], [])
@@ -46,9 +49,7 @@ class Clotho(AudioDataset):
 
         return audio_paths_expanded, captions
 
-    def download_audio(self, audiodata_dir: str):
-        base_url = "https://zenodo.org/record/3490684/files/"
-
+    def __download_audio(self, audiodata_dir: str):
         match self.kind:
             case "train":
                 filename = "clotho_audio_development.7z"
@@ -60,7 +61,7 @@ class Clotho(AudioDataset):
                 raise ValueError(f"Unknown kind {self.kind}")
 
         zip_path = os.path.join(audiodata_dir, self.kind + ".7z")
-        self.download_file(base_url + filename, zip_path, f"Downloading {self.kind} audio data")
+        self.__download_file(BASE_URL + filename, zip_path, f"Downloading {self.kind} audio data")
 
         # Extract downloaded zip file
         py7zr.SevenZipFile(zip_path, 'r').extractall(audiodata_dir)
@@ -79,20 +80,22 @@ class Clotho(AudioDataset):
             # Remove the now empty nested directory
             shutil.rmtree(root)
 
-    def download_metadata(self, metadata_path: str):
-        base_url = "https://zenodo.org/record/3490684/files/"
+        print(f"Downloaded {self.kind} audio data to {audiodata_dir}")
 
-        match self.kind:
-            case "train":
-                filename = "clotho_captions_development.csv"
-            case "val":
-                filename = "clotho_captions_validation.csv"
-            case "test":
-                filename = "clotho_captions_evaluation.csv"
-            case _:
-                raise ValueError(f"Unknown kind {self.kind}")
+    def __download_metadata(self, metadata_path: str):
+        if not os.path.exists(metadata_path):
+            match self.kind:
+                case "train":
+                    filename = "clotho_captions_development.csv"
+                case "val":
+                    filename = "clotho_captions_validation.csv"
+                case "test":
+                    filename = "clotho_captions_evaluation.csv"
+                case _:
+                    raise ValueError(f"Unknown kind {self.kind}")
 
-        self.download_file(base_url + filename, metadata_path, f"Downloading {self.kind} audio metadata")
+            self.__download_file(BASE_URL + filename, metadata_path, f"Downloading {self.kind} audio metadata")
+            print(f"Downloaded {self.kind} metadata to {metadata_path}")
 
     @staticmethod
     def split_captions(metadata_df: pd.DataFrame) -> pd.DataFrame:
@@ -113,7 +116,7 @@ class Clotho(AudioDataset):
         return metadata_df_melted
 
     @staticmethod
-    def download_file(file_url: str, destination_path: str, desc: str):
+    def __download_file(file_url: str, destination_path: str, desc: str):
         response = requests.get(file_url, stream=True)
         block_size = 1024
 

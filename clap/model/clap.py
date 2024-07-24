@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import yaml
-
 import numpy as np
 
 import torch
@@ -9,6 +7,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from .layers import TextEncoder, AudioEncoder
+from ..utils import load_config
 
 
 class Clap(nn.Module):
@@ -24,6 +23,7 @@ class Clap(nn.Module):
         Trainable parameter for scaling the logits and used as temperature when calculating the similarity matrix.
     """
     def __init__(self, config: dict | Path | str):
+        # TODO: Update docstring
         """
         Initializes the CLAP model.
 
@@ -69,11 +69,11 @@ class Clap(nn.Module):
         """
         super().__init__()
 
-        config = self.load_config(config)
+        config = load_config(config)
 
-        self.text_encoder = TextEncoder(config["text_encoder"], config["projection"])
+        self.text_encoder = TextEncoder(config["text"], config["projection"])
 
-        self.audio_encoder = AudioEncoder(config["audio_encoder"], config["projection"])
+        self.audio_encoder = AudioEncoder(config["audio"], config["projection"])
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 

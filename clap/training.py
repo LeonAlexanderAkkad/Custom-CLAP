@@ -16,21 +16,20 @@ from typing import Optional, Tuple
 
 from abc import ABC, abstractmethod
 
-from .utils import get_target_device
-
-# from dataset import Dataset
-
 import os
 
+from .utils import get_target_device
+from .model import Clap
 
-class Trainer(ABC):
+
+class Trainer:
     def __init__(
             self,
             dataset,
             train_loader: DataLoader,
             val_loader: DataLoader,
             test_loader: DataLoader,
-            model: nn.Module,
+            model: Clap,
             optimizer: Optimizer,
             loss_fun: nn.Module,
             epochs: int
@@ -67,7 +66,7 @@ class Trainer(ABC):
             out_path: str,
             adapt_lr_factor: Optional[float] = None,
             early_stopping: bool = False
-    ) -> Tuple[float, float, float, float, float, float]:
+    ) -> Tuple[float, float, float, float, float, float, float]:
         """Optimizes a given model for a number of epochs and saves the best model.
 
         The function computes both the defined loss and the accuracy between the output of the model and the given target.
@@ -86,8 +85,8 @@ class Trainer(ABC):
 
         Returns
         -------
-        Tuple[float, float, float, float, float, float]
-            A tuple containing the average train and validation loss/accuracy as well as the final test loss/accuracy.
+        Tuple[float, float, float, float, float, float, float]
+            A tuple containing the final test loss and Recall@K.
         """
 
         best_loss = 0
@@ -100,49 +99,58 @@ class Trainer(ABC):
         print("\nStarting to train Model")
         for epoch in range(self.epochs):
 
-            train_loss, train_acc = self.train_model()
-            val_loss, val_acc = self.eval_model()
+            train_loss, train_r1_t2a, train_r5_t2a, train_r10_t2a, train_r1_a2t, train_r5_a2t, train_r10_a2t = self.train_model()
+            val_loss, val_r1_t2a, val_r5_t2a, val_r10_t2a, val_r1_a2t, val_r5_a2t, val_r10_a2t = self.eval_model()
 
-            train_losses.append(train_loss)
-            train_accuracies.append(train_acc)
-            validation_losses.append(val_loss)
-            validation_accuracies.append(val_acc)
+            # train_losses.append(train_loss)
+            # train_accuracies.append(train_acc)
+            # validation_losses.append(val_loss)
+            # validation_accuracies.append(val_acc)
 
             wb.log(
-                {"train/loss": train_loss,
-                 "train/accuracy": train_acc,
-                 "val/loss": val_loss,
-                 "val/accuracy": val_acc,
-                 "epoch": self._current_epoch}
+                {
+                    "train/loss": train_loss.item(),
+                    "train/t2a/recall@1": train_r1_t2a,
+                    "train/t2a/recall@5": train_r5_t2a,
+                    "train/t2a/recall@10": train_r10_t2a,
+                    "train/a2t/recall@1": train_r1_a2t,
+                    "train/a2t/recall@5": train_r5_a2t,
+                    "train/a2t/recall@10": train_r10_a2t,
+                    "val/loss": val_loss.item(),
+                    "val/t2a/recall@1": val_r1_t2a,
+                    "val/t2a/recall@5": val_r5_t2a,
+                    "val/t2a/recall@10": val_r10_t2a,
+                    "val/a2t/recall@1": val_r1_a2t,
+                    "val/a2t/recall@5": val_r5_a2t,
+                    "val/a2t/recall@10": val_r10_a2t,
+                    "epoch": self._current_epoch
+                }
             )
 
             print(f"\nEpoch: {str(self._current_epoch + 1).zfill(len(str(self.epochs)))} (lr={self._lr}) || "
                   f"Validation loss: {val_loss:.4f} || "
-                  f"Validation accuracy: {val_acc:.4f} || "
+                  f"Validation T-A R@1: {val_r1_t2a:.4f} || "
+                  f"Validation A-T R@1: {val_r1_a2t:.4f} || "
                   f"Training loss: {train_loss:.4f} || "
-                  f"Training accuracy: {train_acc}")
+                  f"Training T-A R@1: {train_r1_t2a:.4f} || "
+                  f"Training A-T R@1: {train_r1_a2t:.4f}")
 
             # Check for early stopping.
             if early_stopping:
                 if np.argmin(validation_losses) <= epoch - 5:
                     print(f"\nEarly stopping on epoch {epoch}!")
-                    test_loss, test_acc = self.eval_model()
-                    print(f"\nFinal loss: {test_loss} || Final test accuracy: {test_acc:.4f}")
+                    test_loss, test_r1_t2a, test_r5_t2a, test_r10_t2a, test_r1_a2t, test_r5_a2t, test_r10_a2t = self.eval_model(save_predictions=True)
+                    print(f"\nFinal loss: {test_loss} || Final test T-A R@1: {test_r1_t2a:.4f} || Final test A-T R@1: {test_r1_a2t:.4f}")
                     print("\nDone!")
 
-                    return (np.mean(np.array(train_losses)).item(),
-                            np.mean(np.array(train_accuracies)).item(),
-                            np.mean(np.array(validation_losses)).item(),
-                            np.mean(np.array(validation_accuracies)).item(),
-                            test_loss,
-                            test_acc)
+                    return test_loss, test_r1_t2a, test_r5_t2a, test_r10_t2a, test_r1_a2t, test_r5_a2t, test_r10_a2t
 
             # Either save the best model or adapt the learning rate if necessary.
             if not best_loss or val_loss < best_loss:
                 best_loss = val_loss
                 torch.save({"epoch": self._current_epoch,
-                            "model_dict": self.model.state_dict(),
-                            "optimizer_dict": self.optimizer.state_dict(),
+                            "model": self.model.state_dict(),
+                            "optimizer": self.optimizer.state_dict(),
                             "best_val_loss": best_loss}, out_path)
                 print(f"\nModel saved to {out_path}")
             else:
@@ -154,22 +162,17 @@ class Trainer(ABC):
 
             print("\n" + 100 * "=")
 
-        test_loss, test_acc = self.eval_model(save_predictions=True)
+        test_loss, test_r1_t2a, test_r5_t2a, test_r10_t2a, test_r1_a2t, test_r5_a2t, test_r10_a2t = self.eval_model(save_predictions=True)
 
         # Necessary to work with model in jupyter notebook after training is done.
         wb.unwatch(self.model)
 
-        print(f"\nFinal loss: {test_loss} || Final test accuracy: {test_acc:.4f}")
+        print(f"\nFinal loss: {test_loss} || Final test T-A R@1: {test_r1_t2a:.4f} || Final test A-T R@1: {test_r1_a2t:.4f}")
         print("\nDone!")
 
-        return (np.mean(np.array(train_losses)).item(),
-                np.mean(np.array(train_accuracies)).item(),
-                np.mean(np.array(validation_losses)).item(),
-                np.mean(np.array(validation_accuracies)).item(),
-                test_loss,
-                test_acc)
+        return test_loss, test_r1_t2a, test_r5_t2a, test_r10_t2a, test_r1_a2t, test_r5_a2t, test_r10_a2t
 
-    def eval_model(self, save_predictions: bool = False) -> tuple[float, float]:
+    def eval_model(self, save_predictions: bool = False) -> tuple[float, float, float, float, float, float, float]:
         """Evaluates a given model on test data.
 
         Parameters
@@ -179,53 +182,102 @@ class Trainer(ABC):
 
         Returns
         -------
-        float, float
-            Returns the specified average loss and accuracy.
+        float, float, float, float, float, float, float
+            The specified average loss and average Recall@K for Audio to Text and vice versa.
         """
 
         # Turn on evaluation mode for the model.
         self.model.eval()
 
         total_loss = []
-        total_acc = []
-        test_table = self.create_table() if save_predictions else None
+
+        total_r1_t2a = []
+        total_r5_t2a = []
+        total_r10_t2a = []
+
+        total_r1_a2t = []
+        total_r5_a2t = []
+        total_r10_a2t = []
+        # test_table = self.create_table() if save_predictions else None
 
         # Compute the loss with torch.no_grad() as gradients aren't used.
         with torch.no_grad():
-            for idx, data, target in tqdm(self.test_loader, desc="Evaluating model on val/test set"):
-                data, target = data.float().to(self._device), target.float().to(self._device)
+            for _, caption, audio in tqdm(self.test_loader, desc="Evaluating model on val/test set"):
 
-                output, loss, acc = self.compute_loss_acc(data, target)
+                # Compute similarity matrix and loss
+                text_em, audio_em, _ = self.model(caption, audio)
+                similarity = self.model.compute_similarity(text_em, audio_em)
+                loss = self.loss_fun(similarity)
+
+                # Text-to-Audio retrieval
+                r1_t2a = self.compute_recall_at_k(similarity, k=1)
+                r5_t2a = self.compute_recall_at_k(similarity, k=5)
+                r10_t2a = self.compute_recall_at_k(similarity, k=10)
+                total_r1_t2a.append(r1_t2a)
+                total_r5_t2a.append(r5_t2a)
+                total_r10_t2a.append(r10_t2a)
+
+                # Audio-to-Text retrieval
+                r1_a2t = self.compute_recall_at_k(similarity.T, k=1)
+                r5_a2t = self.compute_recall_at_k(similarity.T, k=5)
+                r10_a2t = self.compute_recall_at_k(similarity.T, k=10)
+                total_r1_a2t.append(r1_a2t)
+                total_r5_a2t.append(r5_a2t)
+                total_r10_a2t.append(r10_a2t)
 
                 # Log batch loss and accuracy as well as predictions.
                 if save_predictions:
-                    self.log_pred_target(test_table, idx, output, target)
-                    wb.log({"test/batch loss": loss.item(), "test/batch accuracy": acc.item(),
-                            "test/step": self._global_test_step})
+                    # self.log_pred_target(test_table, idx, output, target)
+                    wb.log(
+                        {
+                            "test/batch loss": loss.item(),
+                            "test/t2a/batch recall@1": r1_t2a,
+                            "test/t2a/batch recall@5": r5_t2a,
+                            "test/t2a/batch recall@10": r10_t2a,
+                            "test/a2t/batch recall@1": r1_a2t,
+                            "test/a2t/batch recall@5": r5_a2t,
+                            "test/a2t/batch recall@10": r10_a2t,
+                            "test/step": self._global_test_step
+                        }
+                    )
                     self._global_test_step += 1
                 else:
-                    wb.log({"val/batch loss": loss.item(), "val/batch accuracy": acc.item(),
-                            "val/step": self._global_val_step})
+                    wb.log(
+                        {
+                            "test/batch loss": loss.item(),
+                            "test/t2a/batch recall@1": r1_t2a,
+                            "test/t2a/batch recall@5": r5_t2a,
+                            "test/t2a/batch recall@10": r10_t2a,
+                            "test/a2t/batch recall@1": r1_a2t,
+                            "test/a2t/batch recall@5": r5_a2t,
+                            "test/a2t/batch recall@10": r10_a2t,
+                            "test/step": self._global_val_step
+                        }
+                    )
                     self._global_val_step += 1
 
                 # Compute total loss.
                 total_loss.append(loss.item())
-                # Compute the total accuracy.
-                total_acc.append(acc.item())
 
             # log final table
-            if save_predictions:
-                wb.log({"test/predictions": test_table})
+            # if save_predictions:
+                # wb.log({"test/predictions": test_table})
 
-        return np.mean(np.array(total_loss)).item(), np.mean(np.array(total_acc)).item()
+        return (np.mean(np.array(total_loss)).item(),
+                np.mean(np.array(total_r1_t2a)).item(),
+                np.mean(np.array(total_r5_t2a)).item(),
+                np.mean(np.array(total_r10_t2a)).item(),
+                np.mean(np.array(total_r1_a2t)).item(),
+                np.mean(np.array(total_r5_a2t)).item(),
+                np.mean(np.array(total_r10_a2t)).item())
 
-    def train_model(self) -> tuple[float, float]:
+    def train_model(self) -> tuple[float, float, float, float, float, float, float]:
         """Trains a given model on the training data.
 
         Returns
         -------
-        float, float
-            The specified average loss and accuracy.
+        float, float, float, float, float, float, float
+            The specified average loss and average Recall@K for Audio to Text and vice versa.
         """
 
         # Put the model into train mode and enable gradients computation.
@@ -233,14 +285,40 @@ class Trainer(ABC):
         torch.enable_grad()
 
         total_loss = []
-        total_acc = []
+
+        total_r1_t2a = []
+        total_r5_t2a = []
+        total_r10_t2a = []
+
+        total_r1_a2t = []
+        total_r5_a2t = []
+        total_r10_a2t = []
 
         lr = Trainer.get_lr(self.optimizer)
 
-        for _, data, target in tqdm(self.train_loader, desc=f"Training epoch {self._current_epoch + 1} ({lr=})"):
-            data, target = data.float().to(self._device), target.float().to(self._device)
+        for _, caption, audio in tqdm(self.train_loader, desc=f"Training epoch {self._current_epoch + 1} ({lr=})"):
 
-            output, loss, acc = self.compute_loss_acc(data, target)
+            # Compute similarity matrix and loss
+            text_em, audio_em, _ = self.model(caption, audio)
+            similarity = self.model.compute_similarity(text_em, audio_em)
+            loss = self.loss_fun(similarity)
+
+            # Text-to-Audio retrieval
+            r1_t2a = self.compute_recall_at_k(similarity, k=1)
+            r5_t2a = self.compute_recall_at_k(similarity, k=5)
+            r10_t2a = self.compute_recall_at_k(similarity, k=10)
+            total_r1_t2a.append(r1_t2a)
+            total_r5_t2a.append(r5_t2a)
+            total_r10_t2a.append(r10_t2a)
+
+            # Audio-to-Text retrieval
+            r1_a2t = self.compute_recall_at_k(similarity.T, k=1)
+            r5_a2t = self.compute_recall_at_k(similarity.T, k=5)
+            r10_a2t = self.compute_recall_at_k(similarity.T, k=10)
+            total_r1_a2t.append(r1_a2t)
+            total_r5_a2t.append(r5_a2t)
+            total_r10_a2t.append(r10_a2t)
+
             # Compute the gradients.
             loss.backward()
             # Perform the update.
@@ -248,49 +326,75 @@ class Trainer(ABC):
             # Reset the accumulated gradients.
             self.optimizer.zero_grad()
             # Log batch loss and accuracy.
-            wb.log({"train/batch loss": loss.item(), "train/batch accuracy": acc.item(),
-                    "train/step": self._global_train_step})
+            wb.log(
+                {
+                    "train/batch loss": loss.item(),
+                    "train/t2a/batch recall@1": r1_t2a,
+                    "train/t2a/batch recall@5": r5_t2a,
+                    "train/t2a/batch recall@10": r10_t2a,
+                    "train/a2t/batch recall@1": r1_a2t,
+                    "train/a2t/batch recall@5": r5_a2t,
+                    "train/a2t/batch recall@10": r10_a2t,
+                    "train/step": self._global_train_step
+                }
+            )
+
             self._global_train_step += 1
             # Compute the total loss.
             total_loss.append(loss.item())
-            # Compute the total accuracy.
-            total_acc.append(acc.item())
 
         self._current_epoch += 1
 
-        return np.mean(np.array(total_loss)).item(), np.mean(np.array(total_acc)).item()
+        return (np.mean(np.array(total_loss)).item(),
+                np.mean(np.array(total_r1_t2a)).item(),
+                np.mean(np.array(total_r5_t2a)).item(),
+                np.mean(np.array(total_r10_t2a)).item(),
+                np.mean(np.array(total_r1_a2t)).item(),
+                np.mean(np.array(total_r5_a2t)).item(),
+                np.mean(np.array(total_r10_a2t)).item())
 
-    @abstractmethod
-    def compute_loss_acc(
-            self,
-            data: torch.Tensor,
-            target: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Computes the loss and accuracy from the given data and target.
+    # TODO: implement abstract methods
+
+    # @abstractmethod
+    # def log_pred_target(self, test_table: wb.Table, idx: torch.Tensor, output: torch.Tensor, target: torch.Tensor):
+    #     """Log the predictions and the respective target to the test table."""
+    #     pass
+    #
+    # @abstractmethod
+    # def create_table(self) -> wb.Table:
+    #     """Creates a table to log predictions"""
+    #     pass
+
+    @staticmethod
+    def compute_recall_at_k(similarity: torch.Tensor, k: int) -> float:
+        """Compute Recall@K for a given similarity matrix.
 
         Parameters
         ----------
-        data : torch.Tensor
-            Data used to calculate the model output and compute the loss as well as the accuracy.
-        target: torch.Tensor
-            Target used to compute the loss as well as the accuracy.
+        similarity : torch.Tensor,
+            Tensor of shape (N, N) where N is the number of samples.
+        k : int
+            The value of K for Recall@K.
 
         Returns
         -------
-        torch.Tensor, torch.Tensor, torch.Tensor
-            The model output as well as the loss and accuracy for the respective data and target.
+        float, float
+            The Recall@K for the A-T and T-A retrieval respectively.
         """
-        pass
 
-    @abstractmethod
-    def log_pred_target(self, test_table: wb.Table, idx: torch.Tensor, output: torch.Tensor, target: torch.Tensor):
-        """Log the predictions and the respective target to the test table."""
-        pass
+        N = similarity.shape[0]
+        correct = 0
 
-    @abstractmethod
-    def create_table(self) -> wb.Table:
-        """Creates a table to log predictions"""
-        pass
+        # For all samples in the batch
+        for i in range(N):
+            # Get the indices of the top K similarities for each text
+            top_k_indices = torch.topk(similarity[i], k).indices
+            # Check if the correct audio is within the top K
+            if i in top_k_indices:
+                correct += 1
+
+        recall_at_k = correct / N
+        return recall_at_k
 
     @staticmethod
     def set_random_seed(seed: int | None = 42) -> int:
