@@ -1,3 +1,5 @@
+import os
+
 from pathlib import Path
 
 import numpy as np
@@ -16,56 +18,21 @@ class Clap(nn.Module):
     Attributes
     ----------
     text_encoder : nn.Module
-        The pretrained text encoder. Available encoders: RoBERTa.
+        The pretrained text encoder. Available encoders: RoBERTa, GPT-2.
     audio_encoder : nn.Module
         The pretrained audio encoder. Available encoders: Cnn14, HTSAT.
     logit_scale : nn.Parameter
         Trainable parameter for scaling the logits and used as temperature when calculating the similarity matrix.
     """
     def __init__(self, config: dict | Path | str):
-        # TODO: Update docstring
         """
         Initializes the CLAP model.
 
         Parameters
         ----------
-        config : dict
-            Dictionary containing the parameters of the CLAP model:
+        config : dict | Path | str
+            The config file containing all the hyperparameters.
 
-            Text Parameters
-            ---------------
-            text_enc_name : str
-                Name of the pretrained text encoder to load.
-            text_proj_in : int
-                Number of input channels for the projection layer in the text encoder.
-
-            Audio Parameters
-            ----------------
-            audio_enc_name : str
-                Name of the pretrained audio encoder to load.
-            sample_rate : int
-                Sample rate used for the LogmelFilterBank to determine the frequency range of the input audio.
-            window_size : int
-                Size of the window used for the Short-Time Fourier Transform (STFT), used to compute the spectrogram.
-            hop_size : int
-                Stride of the window used for the Short-Time Fourier Transform.
-            mel_bins : int
-                Number of bins in the mel spectrogram.
-            f_min : int
-                Lower bound for the frequency of the Mel filter bank.
-            f_max : int
-                Upper bound for the frequency of the Mel filter bank.
-            classes_num : int
-                Number of classes in the audio dataset.
-            audio_proj_in : int
-                Number of input channels for the projection layer in the audio encoder.
-
-            Shared Parameters
-            -----------------
-            proj_hidden : int
-                Number of hidden channels for the projection layer.
-            proj_out : int
-                Number of output channels for the projection layer.
         """
         super().__init__()
 
@@ -90,17 +57,12 @@ class Clap(nn.Module):
         return similarity.T
 
     @classmethod
-    def from_ckpt(cls, config: dict | Path | str, ckpt: Path | str) -> "Clap":
+    def from_ckpt(cls, ckpt: Path | str) -> "Clap":
         """
         Create an instance of Clap from a checkpoint file (e.g. a ckpt file)
-        and a given configuration file (e.g. a yml file).
 
         Parameters
         ----------
-        config : dict or Path or str
-            Configuration dictionary or the path to the configuration file,
-            this can be either a `Path` object or a string representing the file path.
-
         ckpt: Path or str
             The path to the checkpoint file.
             This can be either a `Path` object or a string representing the file path.
@@ -109,20 +71,23 @@ class Clap(nn.Module):
         -------
         Clap
             An instance of the Clap class initialized with the checkpoint
-            and configuration loaded from the specified file.
 
         Examples
         --------
-        >>> clap_instance = Clap.from_ckpt("config.yml", "checkpoint.ckpt")
+        >>> clap_instance = Clap.from_ckpt("clap/checkpoints/clap_cnn14_roberta.ckpt")
         >>> isinstance(clap_instance, Clap)
         True
         """
-        clap = cls(config)
-        cls.load_ckpt(clap, ckpt)
+        version = os.path.basename(ckpt).split(".")[0]
+
+        config_path = Path(__file__).parent / "configs" / f"{version}.yml"
+
+        clap = cls(config_path)
+        cls.__load_ckpt(clap, ckpt)
 
         return clap
 
     @staticmethod
-    def load_ckpt(model: nn.Module, ckpt: Path | str):
+    def __load_ckpt(model: nn.Module, ckpt: Path | str):
         ckpt = torch.load(ckpt)
         model.load_state_dict(ckpt["model_state_dict"])

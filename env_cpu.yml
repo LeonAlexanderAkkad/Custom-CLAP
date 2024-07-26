@@ -19,6 +19,7 @@ dependencies:
   - py7zr
   - pip
   - pip:
+    - -e .
     - wandb
     - torchlibrosa
     - yt_dlp

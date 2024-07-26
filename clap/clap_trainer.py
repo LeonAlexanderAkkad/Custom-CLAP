@@ -14,18 +14,15 @@ from torch.optim import Optimizer
 
 from typing import Optional, Tuple
 
-from abc import ABC, abstractmethod
-
 import os
 
 from .utils import get_target_device
 from .model import Clap
 
 
-class Trainer:
+class ClapTrainer:
     def __init__(
             self,
-            dataset,
             train_loader: DataLoader,
             val_loader: DataLoader,
             test_loader: DataLoader,
@@ -34,14 +31,13 @@ class Trainer:
             loss_fun: nn.Module,
             epochs: int
     ):
-        self.dataset = dataset
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.model = model
         self.optimizer = optimizer
         self.loss_fun = loss_fun
-        self._lr = Trainer.get_lr(self.optimizer)
+        self._lr = ClapTrainer.get_lr(self.optimizer)
         self._epochs = epochs
         self._device = get_target_device()
         self._global_train_step = 0
@@ -61,7 +57,7 @@ class Trainer:
 
         print("Please enter a valid epoch")
 
-    def optimizing_predictor(
+    def train_and_eval(
             self,
             out_path: str,
             adapt_lr_factor: Optional[float] = None,
@@ -109,14 +105,14 @@ class Trainer:
 
             wb.log(
                 {
-                    "train/loss": train_loss.item(),
+                    "train/loss": train_loss,
                     "train/t2a/recall@1": train_r1_t2a,
                     "train/t2a/recall@5": train_r5_t2a,
                     "train/t2a/recall@10": train_r10_t2a,
                     "train/a2t/recall@1": train_r1_a2t,
                     "train/a2t/recall@5": train_r5_a2t,
                     "train/a2t/recall@10": train_r10_a2t,
-                    "val/loss": val_loss.item(),
+                    "val/loss": val_loss,
                     "val/t2a/recall@1": val_r1_t2a,
                     "val/t2a/recall@5": val_r5_t2a,
                     "val/t2a/recall@10": val_r10_t2a,
@@ -244,14 +240,14 @@ class Trainer:
                 else:
                     wb.log(
                         {
-                            "test/batch loss": loss.item(),
-                            "test/t2a/batch recall@1": r1_t2a,
-                            "test/t2a/batch recall@5": r5_t2a,
-                            "test/t2a/batch recall@10": r10_t2a,
-                            "test/a2t/batch recall@1": r1_a2t,
-                            "test/a2t/batch recall@5": r5_a2t,
-                            "test/a2t/batch recall@10": r10_a2t,
-                            "test/step": self._global_val_step
+                            "val/batch loss": loss.item(),
+                            "val/t2a/batch recall@1": r1_t2a,
+                            "val/t2a/batch recall@5": r5_t2a,
+                            "val/t2a/batch recall@10": r10_t2a,
+                            "val/a2t/batch recall@1": r1_a2t,
+                            "val/a2t/batch recall@5": r5_a2t,
+                            "val/a2t/batch recall@10": r10_a2t,
+                            "val/step": self._global_val_step
                         }
                     )
                     self._global_val_step += 1
@@ -294,7 +290,7 @@ class Trainer:
         total_r5_a2t = []
         total_r10_a2t = []
 
-        lr = Trainer.get_lr(self.optimizer)
+        lr = ClapTrainer.get_lr(self.optimizer)
 
         for _, caption, audio in tqdm(self.train_loader, desc=f"Training epoch {self._current_epoch + 1} ({lr=})"):
 
@@ -378,8 +374,8 @@ class Trainer:
 
         Returns
         -------
-        float, float
-            The Recall@K for the A-T and T-A retrieval respectively.
+        float
+            The Recall@K for the A-T or T-A retrieval respectively.
         """
 
         N = similarity.shape[0]

@@ -17,7 +17,7 @@ from .audio_dataset import AudioDataset
 from ..utils import load_config, get_target_device
 
 
-AVAILABLE_DATASETS = {"Audiocaps", "Clotho"}
+AVAILABLE_DATASETS = {"AudioCaps", "Clotho"}
 
 
 class ClapDataset(AudioDataset):
@@ -26,7 +26,7 @@ class ClapDataset(AudioDataset):
             config: dict | Path | str,
             kind: Literal["train", "val", "test"] = "train",
             download: bool = False,
-            datasets: list[Union[Literal["Audiocaps"], Literal["Clotho"]]] = ("Audiocaps", "Clotho")
+            datasets: list[Union[Literal["AudioCaps"], Literal["Clotho"]]] = ("AudioCaps", "Clotho")
     ):
         self.datasets = datasets
         super().__init__(kind, download)
@@ -98,7 +98,13 @@ class ClapDataset(AudioDataset):
         # Audio is neither too short nor too long
         else:
             audio_mel = self.get_mel_spectrogram(audio)
-            audio_mel = torch.stack([audio_mel, audio_mel, audio_mel, audio_mel], dim=0)
+            if self.use_fusion:
+                # Needed for batching
+                padding = torch.empty_like(audio_mel, device=audio_mel.device)
+                audio_mel = torch.stack([audio_mel, padding, padding, padding], dim=0)
+            else:
+                # Needed for unified processing in the model
+                audio_mel = audio_mel.unsqueeze(0)
             is_longer = False
 
         audio_sample["is_longer"] = torch.tensor(is_longer).to(self.device)
@@ -117,7 +123,8 @@ class ClapDataset(AudioDataset):
                 # there is a corner case where the audio length is
                 # larger than max_len but smaller than max_len+hop_size
                 # In this case, we just use the whole audio
-                audio_mel = torch.stack([audio_mel, audio_mel, audio_mel, audio_mel], dim=0)
+                padding = torch.empty_like(audio_mel, device=audio_mel.device)
+                audio_mel = torch.stack([audio_mel, padding, padding, padding], dim=0)
                 is_longer = False
             else:
                 ranges = np.array_split(list(range(0, total_frames - chunk_frames + 1)), 3)
@@ -133,7 +140,7 @@ class ClapDataset(AudioDataset):
                 idx_middle = np.random.choice(ranges[1])
                 idx_back = np.random.choice(ranges[2])
 
-                # Select the mel for each chung
+                # Select the mel for each chunk
                 audio_mel_chunk_front = audio_mel[idx_front:idx_front + chunk_frames, :]
                 audio_mel_chunk_middle = audio_mel[idx_middle:idx_middle + chunk_frames, :]
                 audio_mel_chunk_back = audio_mel[idx_back:idx_back + chunk_frames, :]
@@ -151,7 +158,7 @@ class ClapDataset(AudioDataset):
         else:
             start_index = random.randrange(len(audio) - max_len)
             audio = audio[start_index:start_index + max_len]
-            audio_mel = self.get_mel_spectrogram(audio)
+            audio_mel = self.get_mel_spectrogram(audio).unsqueeze(0)
             is_longer = False
 
         return audio_mel, is_longer
@@ -164,7 +171,13 @@ class ClapDataset(AudioDataset):
         audio_mel = self.get_mel_spectrogram(audio)
 
         if self.use_fusion:
-            audio_mel = torch.stack([audio_mel, audio_mel, audio_mel, audio_mel], dim=0)
+            # Needed for batching
+            padding = torch.empty_like(audio_mel, device=audio_mel.device)
+            audio_mel = torch.stack([audio_mel, padding, padding, padding], dim=0)
+        else:
+            # Needed for unified processing in the model
+            audio_mel = audio_mel.unsqueeze(0)
+
         is_longer = False
 
         return audio_mel, is_longer

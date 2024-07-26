@@ -1,11 +1,11 @@
 [project]
-name = "clap"
+name = "custom-clap"
 version = "0.0.1"
-description = "Custon Contrastive Language-Audio Pretraining (CLAP) model that learns audio concepts from natural language supervision enabling Zero-Shot inference."
+description = "Custom Contrastive Language-Audio Pretraining (CLAP) model that learns audio concepts from natural language supervision enabling Zero-Shot inference."
 authors = [
     {name= "Leon Alexander Akkad", email = "leon@akkad.at"}
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10, <3.12"
 license = {text = "MIT"}
 readme = "README.md"
 
@@ -15,3 +15,6 @@ Repository =  "https://github.com/LeonAlexanderAkkad/Custom-CLAP"
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["clap"]

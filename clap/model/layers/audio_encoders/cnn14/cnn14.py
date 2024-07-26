@@ -85,7 +85,6 @@ class Cnn14(nn.Module):
 
         x_global = x[:, 0:1, :, :]
 
-        B, C, H, W = x_global.shape
         x_global = self.conv_block1(x_global, pool_size=(2, 2), pool_type='avg')
 
         # Fuse samples that are longer

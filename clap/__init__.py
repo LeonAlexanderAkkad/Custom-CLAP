@@ -1,4 +1,4 @@
 from .model import Clap, SymmetricCrossEntropyLoss
-from .training import Trainer
-from .datasets import AudioCaps, Clotho, ClapDataset
+from .clap_trainer import ClapTrainer
+from .datasets import ClapDataset
 from .utils import get_target_device, load_config

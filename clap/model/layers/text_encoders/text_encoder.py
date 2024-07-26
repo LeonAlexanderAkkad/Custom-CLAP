@@ -6,8 +6,7 @@ from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTo
 from ..projection import Projection
 from ....utils import get_target_device
 
-
-TEXT_ENCODERS = {"RoBERTa"}
+TEXT_ENCODERS = {"RoBERTa", "GPT2"}
 
 
 class TextEncoder(nn.Module):
@@ -20,7 +19,7 @@ class TextEncoder(nn.Module):
         self.proj_cfg = proj_cfg
         self.name = self.text_cfg["name"]
 
-        self.text_encoder, self.tokenizer = self.load_text_encoder()
+        self.base, self.tokenizer = self.load_text_encoder()
 
         self.projection = Projection(
             n_input_features=self.text_cfg["out_size"],
@@ -33,9 +32,14 @@ class TextEncoder(nn.Module):
     def forward(self, text: list[str]):
         tokenized_text = self.tokenize(text)
         # Get the last hidden state
-        output = self.text_encoder(**tokenized_text)[0]
-        # Extract CLS token
-        output = output[:, 0, :]
+        output = self.base(**tokenized_text)[0]
+        if "GPT2" in self.name.upper():
+            # Get the actual sequence length without padding (including EOS token)
+            sequence_lengths = torch.ne(tokenized_text['input_ids'], 0).sum(-1) - 1
+            output = output[torch.arange(len(text), device=output.device), sequence_lengths]
+        else:
+            # Extract CLS token
+            output = output[:, 0, :]
 
         # Projects the embedding into the same space as the audio embedding.
         projected = self.projection(output)
@@ -44,13 +48,18 @@ class TextEncoder(nn.Module):
 
     def load_text_encoder(self) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
         """Loads respective pretrained text encoder model from Huggingface."""
-
         if not self.is_valid():
             raise NotImplementedError(
                 f"Text encoder '{self.name}' not implemented.\nAvailable encoders: {list(TEXT_ENCODERS)}"
             )
+        model, tokenizer = AutoModel.from_pretrained(self.name), AutoTokenizer.from_pretrained(self.name)
 
-        return AutoModel.from_pretrained(self.name), AutoTokenizer.from_pretrained(self.name)
+        # We need to add a padding token for GPT2 explicitly, otherwise we cannot pad the input if needed
+        if "GPT2" in self.name.upper():
+            # This token is never used in any caption
+            tokenizer.add_special_tokens({"pad_token": "#"})
+
+        return model, tokenizer
 
     def is_valid(self) -> bool:
         """Checks if the text encoder is valid."""
@@ -62,19 +71,19 @@ class TextEncoder(nn.Module):
         return False
 
     def tokenize(self, text: list[str]) -> dict[str, torch.Tensor]:
-        if "ROBERTA" in self.name.upper():
-            # Tokenize text into a dictionary with the shape:
-            # {'input_ids': torch.Tensor, 'attention_mask': torch.Tensor}
-            tokenized_text = self.tokenizer(
-                text,
-                padding="max_length",
-                truncation=True,
-                max_length=self.text_cfg["max_len"],
-                return_tensors="pt"
-            )
+        if "GPT2" in self.name.upper():
+            # Manually append the end-of-text token
+            text = [caption + " <|endoftext|>" for caption in text]
 
-        else:
-            raise NotImplementedError(f"No forward method implemented for {self.name}")
+        # Tokenize text into a dictionary with the shape: {'input_ids': torch.Tensor, 'attention_mask': torch.Tensor}
+        tokenized_text = self.tokenizer(
+            text,
+            padding="max_length",
+            truncation=True,
+            add_special_tokens=True,
+            max_length=self.text_cfg["max_len"],
+            return_tensors="pt"
+        )
 
         # Move tensors to device
         tokenized_text = {key: value.to(get_target_device()) for key, value in tokenized_text.items()}

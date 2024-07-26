@@ -20,7 +20,7 @@ class AudioEncoder(nn.Module):
         self.proj_cfg = proj_cfg
         self.name = self.audio_cfg["name"]
 
-        self.audio_encoder = self.load_audio_encoder()
+        self.base = self.load_audio_encoder()
 
         self.projection = Projection(
             n_input_features=self.audio_cfg["out_size"],
@@ -32,7 +32,7 @@ class AudioEncoder(nn.Module):
 
     def forward(self, audio: torch.Tensor):
         # Returns a dictionary with the probabilities of each class being present in the audio and the embedding.
-        output = self.audio_encoder(audio)
+        output = self.base(audio)
         # Projects the embedding into the same space as the text embedding.
         projected = self.projection(output["embedding"])
 
