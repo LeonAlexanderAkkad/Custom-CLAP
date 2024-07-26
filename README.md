@@ -3,6 +3,7 @@
 - [Setup](#setup)
 - [Usage](#usage)
 - [Datasets](#datasets)
+- [References](#references)
 
 # Custom Contrastive Language-Audio Pretraining
 This is a custom (unofficial) implementation of the model from the paper [CLAP: Learning Audio Concepts from Natural Language Supervision](https://doi.org/10.1109/ICASSP49357.2023.10095889).
@@ -85,3 +86,11 @@ clotho_train_dataset = ClapDataset(config_path, kind="train", download=True, dat
 audiocaps_test_dataset = ClapDataset(config_path, kind="test", download=True, datasets=["AudioCaps"])
 combined_val_dataset = ClapDataset(config_path, kind="val", download=True, datasets=["AudioCaps", "Clotho"])
 ```
+
+## References
+- B. Elizalde, S. Deshmukh, M. A. Ismail and H. Wang, "CLAP Learning Audio Concepts from Natural Language Supervision," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5, doi: [10.1109/ICASSP49357.2023.10095889](https://doi.org/10.1109/ICASSP49357.2023.10095889).
+- Y. Wu, K. Chen, T. Zhang, Y. Hui, T. Berg-Kirkpatrick and S. Dubnov, "Large-Scale Contrastive Language-Audio Pretraining with Feature Fusion and Keyword-to-Caption Augmentation," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5, doi: [10.1109/ICASSP49357.2023.10095969](https://doi.org/10.1109/ICASSP49357.2023.10095969).
+- K. Chen, X. Du, B. Zhu, Z. Ma, T. Berg-Kirkpatrick and S. Dubnov, "HTS-AT: A Hierarchical Token-Semantic Audio Transformer for Sound Classification and Detection," ICASSP 2022 - 2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Singapore, Singapore, 2022, pp. 646-650, doi: [10.1109/ICASSP43922.2022.9746312](https://doi.org/10.1109/ICASSP43922.2022.9746312).
+- Y. Dai, F. Gieseke, S. Oehmcke, Y. Wu and K. Barnard, "Attentional Feature Fusion," 2021 IEEE Winter Conference on Applications of Computer Vision (WACV), Waikoloa, HI, USA, 2021, pp. 3559-3568, doi: [10.1109/WACV48630.2021.00360](https://doi.org/10.1109/WACV48630.2021.00360).
+
+
