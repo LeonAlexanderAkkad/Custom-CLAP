@@ -8,9 +8,8 @@
 # Custom Contrastive Language-Audio Pretraining
 This is a custom (unofficial) implementation of the model from the paper [CLAP: Learning Audio Concepts from Natural Language Supervision](https://doi.org/10.1109/ICASSP49357.2023.10095889).
 CLAP learns acoustic concepts from natural language supervision and excels in various tasks when fine-tuned as well as enables "Zero-Shot" inference.
-In order to improve the base implementation, I have included **improvements** like using a [Hierarchical Token Semantic Audio Transformer](https://doi.org/10.1109/ICASSP43922.2022.9746312) (**HTS-AT**) as audio encoder or **GPT-2** as text encoder and [Attentional Feature Fusion](https://doi.org/10.1109/WACV48630.2021.00360) (**iAFF**) for effectively processing longer inputs.
-(Not implemented yet: Additionally, I included Caption enhancements for the implemented dataset using the model xyz.)
-(CLAP can be trained on [Clotho](https://doi.org/10.1109/ICASSP40776.2020.9052990) and [AudioCaps](https://doi.org/10.18653/v1/N19-1011) as well as from any CLAP checkpoint.)
+In order to improve the base implementation, I have included **improvements** like using a [Hierarchical Token Semantic Audio Transformer](https://doi.org/10.1109/ICASSP43922.2022.9746312) (**HTS-AT**) as audio encoder or **RoBERTa / GPT-2** as text encoder and [Attentional Feature Fusion](https://doi.org/10.1109/WACV48630.2021.00360) (**iAFF**) for effectively processing longer inputs.
+(Not implemented yet: Additionally, I will probably include caption enhancements for the implemented datasets using an appropriate model.)
 
 ## Setup
 This package can be easily installed with Conda. For this download this repository and do the following:
@@ -44,7 +43,7 @@ from torch.optim import Adam
 
 # Load the model using a path to a config file (primarily for training)
 # The path to the pretrained audio encoder has to be specified in the config
-config_path = "clap/configs/cnn14.yml"
+config_path = "clap/configs/clap_cnn14_roberta.yml"
 clap_from_config = Clap(config=config_path)
 
 # Alternatively, load a trained model from a checkpoint file
@@ -71,17 +70,18 @@ metrics = trainer.train_and_eval(out_path="checkpoints/clap_cnn14_roberta.ckpt")
 ```
 
 ## Datasets
-I implemented a `ClapDataset` class that should be used for training.
+I implemented a `ClapDataset` that should be used for training.
 For now, it only supports the [Clotho](https://doi.org/10.1109/ICASSP40776.2020.9052990) and [AudioCaps](https://doi.org/10.18653/v1/N19-1011) datasets.
 Each ClapDataset represents either train, validation or test dataset and can include either AudioCaps or Clotho or both.
-If need be, the datasets including the metadata will be downloaded to a certain directory and can be used afterward.
+If need be, the datasets including the metadata will be downloaded to a specific directory.
+The user does should not rename/move these files, as there location is important for the `ClapDataset`.
 
 Examples:
 ```python
 from clap import ClapDataset
 
 
-config_path = "clap/configs/cnn14.yml"
+config_path = "clap/configs/clap_cnn14_roberta.yml"
 clotho_train_dataset = ClapDataset(config_path, kind="train", download=True, datasets=["Clotho"])
 audiocaps_test_dataset = ClapDataset(config_path, kind="test", download=True, datasets=["AudioCaps"])
 combined_val_dataset = ClapDataset(config_path, kind="val", download=True, datasets=["AudioCaps", "Clotho"])
