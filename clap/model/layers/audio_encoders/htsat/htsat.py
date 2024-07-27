@@ -755,18 +755,11 @@ class HTSAT_Swin_Transformer(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
 
-        if self.config.loss_type == "clip_ce":
-            output_dict = {
-                'framewise_output': fpx,  # already sigmoided
-                'clipwise_output': x,
-                'latent_output': latent_output
-            }
-        else:
-            output_dict = {
-                'framewise_output': fpx,  # already sigmoided
-                'clipwise_output': torch.sigmoid(x),
-                'latent_output': latent_output
-            }
+        output_dict = {
+            'framewise_output': fpx,  # already sigmoided
+            'clipwise_output': torch.sigmoid(x),
+            'embedding': latent_output
+        }
 
         return output_dict
 
@@ -864,8 +857,7 @@ class HTSAT_Swin_Transformer(nn.Module):
             else:  # this part is typically used, and most easy one
                 x = self.reshape_wav2img(x)
                 output_dict = self.forward_features(x)
-        # x = self.head(x)
-        output_dict["embedding"] = output_dict["latent_outptu"]
+
         return output_dict
 
 
@@ -881,7 +873,6 @@ class HTSAT(nn.Module):
 
     def forward(self, x):
         out_dict = self.htsat(x)
-        out_dict['embedding'] = out_dict['latent_output']
         return out_dict
 
 # TODO: Implement factory and think about which parameters to use / change forward function

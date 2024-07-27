@@ -6,7 +6,7 @@ from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTo
 from ..projection import Projection
 from ....utils import get_target_device
 
-TEXT_ENCODERS = {"RoBERTa", "GPT2"}
+TEXT_ENCODERS = {"ROBERTA", "GPT2"}
 
 
 class TextEncoder(nn.Module):
@@ -17,7 +17,7 @@ class TextEncoder(nn.Module):
 
         self.text_cfg = text_cfg
         self.proj_cfg = proj_cfg
-        self.name = self.text_cfg["name"]
+        self.name = self.text_cfg["name"].upper()
 
         self.base, self.tokenizer = self.load_text_encoder()
 
@@ -33,9 +33,9 @@ class TextEncoder(nn.Module):
         tokenized_text = self.tokenize(text)
         # Get the last hidden state
         output = self.base(**tokenized_text)[0]
-        if "GPT2" in self.name.upper():
+        if "GPT2" in self.name:
             # Get the actual sequence length without padding (including EOS token)
-            sequence_lengths = torch.ne(tokenized_text['input_ids'], 0).sum(-1) - 1
+            sequence_lengths = torch.ne(tokenized_text['input_ids'], self.tokenizer.pad_token_id).sum(-1) - 1
             output = output[torch.arange(len(text), device=output.device), sequence_lengths]
         else:
             # Extract CLS token
@@ -55,7 +55,7 @@ class TextEncoder(nn.Module):
         model, tokenizer = AutoModel.from_pretrained(self.name), AutoTokenizer.from_pretrained(self.name)
 
         # We need to add a padding token for GPT2 explicitly, otherwise we cannot pad the input if needed
-        if "GPT2" in self.name.upper():
+        if "GPT2" in self.name:
             # This token is never used in any caption
             tokenizer.add_special_tokens({"pad_token": "#"})
 
@@ -63,15 +63,14 @@ class TextEncoder(nn.Module):
 
     def is_valid(self) -> bool:
         """Checks if the text encoder is valid."""
-        name = self.name.upper()
         for encoder in TEXT_ENCODERS:
-            if encoder.upper() in name:
+            if encoder in self.name:
                 return True
 
         return False
 
     def tokenize(self, text: list[str]) -> dict[str, torch.Tensor]:
-        if "GPT2" in self.name.upper():
+        if "GPT2" in self.name:
             # Manually append the end-of-text token
             text = [caption + " <|endoftext|>" for caption in text]
 

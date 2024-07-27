@@ -18,6 +18,7 @@ dependencies:
   - transformers
   - ffmpeg
   - py7zr
+  - h5py
   - pip
   - pip:
     - -e .
