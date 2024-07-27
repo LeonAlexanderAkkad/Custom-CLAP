@@ -51,13 +51,13 @@ clap_from_config = Clap(config=config_path)
 clap_from_ckpt = Clap.from_ckpt(ckpt="clap/checkpoints/clap_cnn14_roberta.ckpt")
 
 # Initialize ClapDataset and DataLoaders
-train_dataset = ClapDataset(config=config_path, kind="train", download=True, datasets=["AudioCaps", "Clotho"])
+train_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="train", download=True, config=config_path, preprocess_audio=True)
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-val_dataset = ClapDataset(config=config_path, kind="val", download=True, datasets=["AudioCaps", "Clotho"])
+val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="val", download=True, config=config_path, preprocess_audio=True)
 val_loader = DataLoader(train_dataset, batch_size=32)
 
-test_dataset = ClapDataset(config=config_path, kind="test", download=True, datasets=["AudioCaps", "Clotho"])
+test_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="test", download=True, config=config_path, preprocess_audio=True)
 test_loader = DataLoader(test_dataset, batch_size=32)
 
 # Specify loss and optimizer
@@ -74,6 +74,7 @@ I implemented a `ClapDataset` that should be used for training.
 For now, it only supports the [Clotho](https://doi.org/10.1109/ICASSP40776.2020.9052990) and [AudioCaps](https://doi.org/10.18653/v1/N19-1011) datasets.
 Each ClapDataset represents either train, validation or test dataset and can include either AudioCaps or Clotho or both.
 If need be, the datasets including the metadata will be downloaded to a specific directory.
+The audio needs to be preprocessed first, thus setting `preprocess_audio=True` and specifing a config file is necessary when first initialising a `ClapDataset`.
 The user does should not rename/move these files, as there location is important for the `ClapDataset`.
 
 Examples:
@@ -82,9 +83,9 @@ from clap import ClapDataset
 
 
 config_path = "clap/configs/clap_cnn14_roberta.yml"
-clotho_train_dataset = ClapDataset(config_path, kind="train", download=True, datasets=["Clotho"])
-audiocaps_test_dataset = ClapDataset(config_path, kind="test", download=True, datasets=["AudioCaps"])
-combined_val_dataset = ClapDataset(config_path, kind="val", download=True, datasets=["AudioCaps", "Clotho"])
+clotho_train_dataset = ClapDataset(datasets=["Clotho"], kind="train", download=True, config=config_path, preprocess_audio=True)
+audiocaps_test_dataset = ClapDataset(datasets=["AudioCaps"], kind="test", download=True, config=config_path, preprocess_audio=True)
+combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="val", download=True, config=config_path, preprocess_audio=True)
 ```
 
 ## References
@@ -92,5 +93,3 @@ combined_val_dataset = ClapDataset(config_path, kind="val", download=True, datas
 - Y. Wu, K. Chen, T. Zhang, Y. Hui, T. Berg-Kirkpatrick and S. Dubnov, "Large-Scale Contrastive Language-Audio Pretraining with Feature Fusion and Keyword-to-Caption Augmentation," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5, doi: [10.1109/ICASSP49357.2023.10095969](https://doi.org/10.1109/ICASSP49357.2023.10095969).
 - K. Chen, X. Du, B. Zhu, Z. Ma, T. Berg-Kirkpatrick and S. Dubnov, "HTS-AT: A Hierarchical Token-Semantic Audio Transformer for Sound Classification and Detection," ICASSP 2022 - 2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Singapore, Singapore, 2022, pp. 646-650, doi: [10.1109/ICASSP43922.2022.9746312](https://doi.org/10.1109/ICASSP43922.2022.9746312).
 - Y. Dai, F. Gieseke, S. Oehmcke, Y. Wu and K. Barnard, "Attentional Feature Fusion," 2021 IEEE Winter Conference on Applications of Computer Vision (WACV), Waikoloa, HI, USA, 2021, pp. 3559-3568, doi: [10.1109/WACV48630.2021.00360](https://doi.org/10.1109/WACV48630.2021.00360).
-
-
