@@ -1,5 +1,7 @@
 import random
 
+from pathlib import Path
+
 import numpy as np
 
 import torch
@@ -9,8 +11,9 @@ import torchaudio.transforms as T
 
 
 class AudioProcessor:
-    def __init__(self, audio_cfg: dict):
+    def __init__(self, audio_cfg: dict, device: torch.device = torch.device('cpu')):
         self.audio_cfg = audio_cfg
+        self.device = device
         self.sampling_rate = self.audio_cfg["sampling_rate"]
 
         self.mel_extractor = T.MelSpectrogram(
@@ -25,11 +28,11 @@ class AudioProcessor:
             n_mels=self.audio_cfg["mel_bins"],
             f_min=self.audio_cfg["f_min"],
             f_max=self.audio_cfg["f_max"]
-        )
+        ).to(self.device)
 
-        self.log_mel_extractor = T.AmplitudeToDB(top_db=None)
+        self.log_mel_extractor = T.AmplitudeToDB(top_db=None).to(self.device)
 
-    def process_audio(self, audio_path: str, use_fusion) -> dict[str, torch.Tensor]:
+    def process_audio(self, audio_path: Path | str, use_fusion) -> tuple[torch.Tensor, torch.Tensor]:
         """Method for loading the given sample such that it can be used for training."""
         # Get the audio and reshape it into mono.
         audio, sample_rate = self.__load_audio(audio_path, self.sampling_rate)
@@ -37,7 +40,6 @@ class AudioProcessor:
         audio_len = len(audio)
 
         max_len = self.audio_cfg["duration"] * sample_rate
-        audio_sample = dict()
 
         # Audio is too long and needs to be cropped or fused.
         if audio_len > max_len:
@@ -57,10 +59,7 @@ class AudioProcessor:
                 audio_mel = audio_mel.unsqueeze(0)
             is_longer = False
 
-        audio_sample["is_longer"] = torch.tensor(is_longer)
-        audio_sample["audio"] = audio_mel
-
-        return audio_sample
+        return audio_mel.to(self.device), torch.tensor(is_longer).to(self.device)
 
     def __truncate_audio(self, audio: torch.Tensor, max_len: int, use_fusion: bool) -> tuple[torch.Tensor, bool]:
         if use_fusion:
@@ -132,7 +131,15 @@ class AudioProcessor:
 
         return audio_mel, is_longer
 
-    def __load_audio(self, audio_path: str, target_sampling_rate, resample: bool = True):
+    def __get_mel_spectrogram(self, audio: torch.Tensor) -> torch.Tensor:
+        """Returns the log-mel spectrogram of the given audio."""
+        audio_spec = self.mel_extractor(audio)
+        audio_mel = self.log_mel_extractor(audio_spec)
+
+        return audio_mel.T
+
+    @staticmethod
+    def __load_audio(audio_path: Path | str, target_sampling_rate, resample: bool = True):
         """Loads the given audio and resamples it if wanted"""
         audio, sampling_rate = torchaudio.load(audio_path)
 
@@ -142,10 +149,3 @@ class AudioProcessor:
             sampling_rate = target_sampling_rate
 
         return audio, sampling_rate
-
-    def __get_mel_spectrogram(self, audio: torch.Tensor) -> torch.Tensor:
-        """Returns the log-mel spectrogram of the given audio."""
-        audio_spec = self.mel_extractor(audio)
-        audio_mel = self.log_mel_extractor(audio_spec)
-
-        return audio_mel.T

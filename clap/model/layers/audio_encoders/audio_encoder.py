@@ -40,7 +40,7 @@ class AudioEncoder(nn.Module):
 
     def load_audio_encoder(self) -> nn.Module:
         """Loads respective audio encoder model"""
-        if not self.is_valid():
+        if not self.__is_valid():
             raise NotImplementedError(
                 f"Text encoder '{self.name}' not implemented.\nAvailable encoders: {list(AUDIO_ENCODERS.keys())}"
             )
@@ -60,7 +60,7 @@ class AudioEncoder(nn.Module):
 
         return encoder
 
-    def is_valid(self) -> bool:
+    def __is_valid(self) -> bool:
         """Checks if the audio encoder is valid."""
         for encoder in AUDIO_ENCODERS.keys():
             if encoder in self.name:

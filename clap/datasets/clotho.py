@@ -20,7 +20,7 @@ DATASET_DIR_BASE = os.path.join("clap", "datasets", "clotho")
 
 
 class Clotho(AudioDataset):
-    def get_data(self):
+    def __get_sample(self):
         metadata_path = os.path.join(DATASET_DIR_BASE, f"{self.kind}.csv")
         audiodata_dir = os.path.join(DATASET_DIR_BASE, f"{self.kind}_audio")
         # Download metadata and audios if necessary
@@ -83,19 +83,18 @@ class Clotho(AudioDataset):
         print(f"Downloaded {self.kind} audio data to {audiodata_dir}")
 
     def __download_metadata(self, metadata_path: str):
-        if not os.path.exists(metadata_path):
-            match self.kind:
-                case "train":
-                    filename = "clotho_captions_development.csv"
-                case "val":
-                    filename = "clotho_captions_validation.csv"
-                case "test":
-                    filename = "clotho_captions_evaluation.csv"
-                case _:
-                    raise ValueError(f"Unknown kind {self.kind}")
+        match self.kind:
+            case "train":
+                filename = "clotho_captions_development.csv"
+            case "val":
+                filename = "clotho_captions_validation.csv"
+            case "test":
+                filename = "clotho_captions_evaluation.csv"
+            case _:
+                raise ValueError(f"Unknown kind {self.kind}")
 
-            self.__download_file(BASE_URL + filename, metadata_path, f"Downloading {self.kind} audio metadata")
-            print(f"Downloaded {self.kind} metadata to {metadata_path}")
+        self.__download_file(BASE_URL + filename, metadata_path, f"Downloading {self.kind} audio metadata")
+        print(f"Downloaded {self.kind} metadata to {metadata_path}")
 
     @staticmethod
     def split_captions(metadata_df: pd.DataFrame) -> pd.DataFrame:

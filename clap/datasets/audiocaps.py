@@ -13,12 +13,13 @@ import pandas as pd
 
 from glob import glob
 
+
 BASE_URL = "https://raw.githubusercontent.com/cdjkim/audiocaps/master/dataset/"
 DATASET_DIR_BASE = os.path.join("clap", "datasets", "audiocaps")
 
 
 class AudioCaps(AudioDataset):
-    def get_data(self):
+    def __get_sample(self):
         metadata_path = os.path.join(DATASET_DIR_BASE, f"{self.kind}.csv")
         audiodata_dir = os.path.join(DATASET_DIR_BASE, f"{self.kind}_audio")
         # Download metadata and audios if necessary

@@ -16,7 +16,7 @@ class AudioDataset(Dataset, ABC):
         """Initialize the audio dataset and download it if needed."""
         self.kind = kind
         self.download = download
-        self.data, self.captions = self.get_data()
+        self.data, self.captions = self.__get_sample()
 
     def __getitem__(self, index: int):
         """Returns file given an index."""
@@ -30,5 +30,5 @@ class AudioDataset(Dataset, ABC):
         return len(self.data)
 
     @abstractmethod
-    def get_data(self):
+    def __get_sample(self):
         raise NotImplementedError

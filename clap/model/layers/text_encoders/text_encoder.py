@@ -48,7 +48,7 @@ class TextEncoder(nn.Module):
 
     def load_text_encoder(self) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
         """Loads respective pretrained text encoder model from Huggingface."""
-        if not self.is_valid():
+        if not self.__is_valid():
             raise NotImplementedError(
                 f"Text encoder '{self.name}' not implemented.\nAvailable encoders: {list(TEXT_ENCODERS)}"
             )
@@ -60,14 +60,6 @@ class TextEncoder(nn.Module):
             tokenizer.add_special_tokens({"pad_token": "#"})
 
         return model, tokenizer
-
-    def is_valid(self) -> bool:
-        """Checks if the text encoder is valid."""
-        for encoder in TEXT_ENCODERS:
-            if encoder in self.name:
-                return True
-
-        return False
 
     def tokenize(self, text: list[str]) -> dict[str, torch.Tensor]:
         if "GPT2" in self.name:
@@ -88,3 +80,11 @@ class TextEncoder(nn.Module):
         tokenized_text = {key: value.to(get_target_device()) for key, value in tokenized_text.items()}
 
         return tokenized_text
+
+    def __is_valid(self) -> bool:
+        """Checks if the text encoder is valid."""
+        for encoder in TEXT_ENCODERS:
+            if encoder in self.name:
+                return True
+
+        return False
