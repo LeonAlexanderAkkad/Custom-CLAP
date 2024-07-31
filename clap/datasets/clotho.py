@@ -20,7 +20,7 @@ DATASET_DIR_BASE = os.path.join("clap", "datasets", "clotho")
 
 
 class Clotho(AudioDataset):
-    def __get_sample(self):
+    def get_samples(self):
         metadata_path = os.path.join(DATASET_DIR_BASE, f"{self.kind}.csv")
         audiodata_dir = os.path.join(DATASET_DIR_BASE, f"{self.kind}_audio")
         # Download metadata and audios if necessary

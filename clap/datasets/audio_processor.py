@@ -9,6 +9,8 @@ import torchvision
 import torchaudio
 import torchaudio.transforms as T
 
+from ..utils import load_audio
+
 
 class AudioProcessor:
     def __init__(self, audio_cfg: dict, device: torch.device = torch.device('cpu')):
@@ -35,8 +37,8 @@ class AudioProcessor:
     def process_audio(self, audio_path: Path | str, use_fusion) -> tuple[torch.Tensor, torch.Tensor]:
         """Method for loading the given sample such that it can be used for training."""
         # Get the audio and reshape it into mono.
-        audio, sample_rate = self.__load_audio(audio_path, self.sampling_rate)
-        audio = audio.reshape(-1)
+        audio, sample_rate = load_audio(audio_path, self.sampling_rate)
+        audio = audio.to(self.device)
         audio_len = len(audio)
 
         max_len = self.audio_cfg["duration"] * sample_rate
@@ -137,15 +139,3 @@ class AudioProcessor:
         audio_mel = self.log_mel_extractor(audio_spec)
 
         return audio_mel.T
-
-    @staticmethod
-    def __load_audio(audio_path: Path | str, target_sampling_rate, resample: bool = True):
-        """Loads the given audio and resamples it if wanted"""
-        audio, sampling_rate = torchaudio.load(audio_path)
-
-        if resample and sampling_rate != target_sampling_rate:
-            resampler = T.Resample(sampling_rate, target_sampling_rate)
-            audio = resampler(audio)
-            sampling_rate = target_sampling_rate
-
-        return audio, sampling_rate

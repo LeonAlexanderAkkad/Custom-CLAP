@@ -56,7 +56,12 @@ class AudioEncoder(nn.Module):
             #     if key.startswith("spectrogram_extractor.") or key.startswith("logmel_extractor."):
             #         ckpt["model"].pop(key)
 
-            encoder.load_state_dict(ckpt["model"], strict=False)
+            if ckpt.get("model") is not None:
+                state_dict = ckpt["model"]
+            else:
+                state_dict = ckpt
+
+            encoder.load_state_dict(state_dict, strict=False)
 
         return encoder
 
@@ -64,6 +69,7 @@ class AudioEncoder(nn.Module):
         """Checks if the audio encoder is valid."""
         for encoder in AUDIO_ENCODERS.keys():
             if encoder in self.name:
+                self.name = encoder
                 return True
 
         return False

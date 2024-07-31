@@ -1,51 +1,22 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchlibrosa.stft import Spectrogram, LogmelFilterBank
+from torchlibrosa import SpecAugmentation
 
 from .layers import ConvBlock
 from ..feature_fusion import iAFF
-
 
 
 class Cnn14(nn.Module):
     """Cnn14 model as described in https://doi.org/10.1109/TASLP.2020.3030497.
     Implementation adapted from https://github.com/qiuqiangkong/audioset_tagging_cnn.
     """
-    def __init__(
-        self,
-        # sampling_rate: int,
-        # window_size: int,
-        # hop_size: int,
-        # mel_bins: int,
-        # f_min: int,
-        # f_max: int,
-        # classes_num: int,
-        # emb_out: int
-        config: dict
-    ):
+    def __init__(self, config: dict):
         super().__init__()
-
-        # window = 'hann'
-        # center = True
-        # pad_mode = 'reflect'
-        # ref = 1.0
-        # amin = 1e-10
-        # top_db = None
-        # TODO: Change to complete feature fusion.
-        # Spectrogram extractor
-        # self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
-        #                                          win_length=window_size, window=window, center=center, pad_mode=pad_mode,
-        #                                          freeze_parameters=True)
-        #
-        # # Logmel feature extractor
-        # self.logmel_extractor = LogmelFilterBank(sr=sampling_rate, n_fft=window_size,
-        #                                          n_mels=mel_bins, fmin=f_min, fmax=f_max, ref=ref, amin=amin, top_db=top_db,
-        #                                          freeze_parameters=True)
 
         self.use_fusion = config["use_fusion"]
         emb_out = config["out_size"]
-        classes_num = config["classes_num"]
+        classes_num = config["num_classes"]
 
         self.bn0 = nn.BatchNorm2d(64)
 
@@ -55,6 +26,10 @@ class Cnn14(nn.Module):
         self.conv_block4 = ConvBlock(in_channels=256, out_channels=512)
         self.conv_block5 = ConvBlock(in_channels=512, out_channels=1024)
         self.conv_block6 = ConvBlock(in_channels=1024, out_channels=2048)
+
+        # Spec augmenter
+        self.spec_augmenter = SpecAugmentation(time_drop_width=64, time_stripes_num=2,
+                                               freq_drop_width=8, freq_stripes_num=2)
 
         self.fc1 = nn.Linear(2048, emb_out, bias=True)
         self.fc_audioset = nn.Linear(emb_out, classes_num, bias=True)
@@ -68,12 +43,6 @@ class Cnn14(nn.Module):
             self.fusion_model = iAFF(channels=64, type="2D")
 
     def forward(self, x: dict[str, torch.Tensor]):
-        """
-        Input: (batch_size, data_length)
-        # """
-        # x = self.spectrogram_extractor(x)   # (batch_size, 1, time_steps, freq_bins)
-        # x = self.logmel_extractor(x)    # (batch_size, 1, time_steps, mel_bins)
-
         longer_list = x["is_longer"]
         longer_list_idx = torch.where(longer_list)[0]
 
@@ -82,6 +51,9 @@ class Cnn14(nn.Module):
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)
+
+        if self.training:
+            x = self.spec_augmenter(x)
 
         x_global = x[:, 0:1, :, :]
 

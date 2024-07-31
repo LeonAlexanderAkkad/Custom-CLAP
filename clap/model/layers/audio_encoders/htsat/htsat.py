@@ -23,6 +23,8 @@ from torchlibrosa.augmentation import SpecAugmentation
 
 from itertools import repeat
 
+from ..feature_fusion import iAFF
+
 
 def do_mixup(x, mixup_lambda):
     """
@@ -163,7 +165,7 @@ class PatchEmbed(nn.Module):
     """
 
     def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768, norm_layer=None, flatten=True,
-                 patch_stride=16):
+                 patch_stride=16, use_fusion=True):
         super().__init__()
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
@@ -176,20 +178,47 @@ class PatchEmbed(nn.Module):
         self.flatten = flatten
         self.in_chans = in_chans
         self.embed_dim = embed_dim
+        self.use_fusion = use_fusion
 
         padding = ((patch_size[0] - patch_stride[0]) // 2, (patch_size[1] - patch_stride[1]) // 2)
 
         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_stride, padding=padding)
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
-    def forward(self, x):
-        B, C, H, W = x.shape
+        if self.use_fusion:
+            self.fusion_model = iAFF(channels=embed_dim, type="2D")
+
+    def forward(self, x, longer_list_idx):
+        global_x = x[:, 0:1, :, :]
+
+        # global processing
+        B, C, H, W = global_x.shape
         assert H == self.img_size[0] and W == self.img_size[1], \
             f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
-        x = self.proj(x)
+        global_x = self.proj(global_x)
+        TW = global_x.size(-1)
+        if len(longer_list_idx) > 0:
+            # local processing
+            local_x = x[longer_list_idx, 1:, :, :].contiguous()
+            B, C, H, W = local_x.shape
+            local_x = local_x.view(B * C, 1, H, W)
+            local_x = self.mel_conv2d(local_x)
+            local_x = local_x.view(B, C, local_x.size(1), local_x.size(2), local_x.size(3))
+            local_x = local_x.permute((0, 2, 3, 1, 4)).contiguous().flatten(3)
+            TB, TC, TH, _ = local_x.size()
+            if local_x.size(-1) < TW:
+                local_x = torch.cat([local_x, torch.zeros((TB, TC, TH, TW - local_x.size(-1)), device=global_x.device)],
+                                    dim=-1)
+            else:
+                local_x = local_x[:, :, :, :TW]
+
+            global_x[longer_list_idx] = self.fusion_model(global_x[longer_list_idx], local_x)
+        x = global_x
+
         if self.flatten:
             x = x.flatten(2).transpose(1, 2)  # BCHW -> BNC
         x = self.norm(x)
+
         return x
 
 
@@ -569,7 +598,6 @@ class HTSAT_Swin_Transformer(nn.Module):
     Args:
         spec_size (int | tuple(int)): Input Spectrogram size. Default 256
         patch_size (int | tuple(int)): Patch size. Default: 4
-        path_stride (iot | tuple(int)): Patch Stride for Frequency and Time Axis. Default: 4
         in_chans (int): Number of input image channels. Default: 1 (mono)
         num_classes (int): Number of classes for classification head. Default: 527
         embed_dim (int): Patch embedding dimension. Default: 96
@@ -578,7 +606,6 @@ class HTSAT_Swin_Transformer(nn.Module):
         window_size (int): Window size. Default: 8
         mlp_ratio (float): Ratio of mlp hidden dim to embedding dim. Default: 4
         qkv_bias (bool): If True, add a learnable bias to query, key, value. Default: True
-        qk_scale (float): Override default qk scale of head_dim ** -0.5 if set. Default: None
         drop_rate (float): Dropout rate. Default: 0
         attn_drop_rate (float): Attention dropout rate. Default: 0
         drop_path_rate (float): Stochastic depth rate. Default: 0.1
@@ -590,71 +617,60 @@ class HTSAT_Swin_Transformer(nn.Module):
     """
 
     def __init__(self, spec_size=256, patch_size=4, patch_stride=(4, 4),
-                 in_chans=1, num_classes=527,
-                 embed_dim=96, depths=[2, 2, 6, 2], num_heads=[4, 8, 16, 32],
-                 window_size=8, mlp_ratio=4., qkv_bias=True, qk_scale=None,
+                 in_chans=1, num_classes=527, num_heads=[4, 8, 16, 32],
+                 window_size=8, mlp_ratio=4., qkv_bias=True,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
                  ape=False, patch_norm=True,
-                 use_checkpoint=False, norm_before_mlp='ln', config=None, **kwargs):
+                 use_checkpoint=False, norm_before_mlp='ln', config=None):
         super(HTSAT_Swin_Transformer, self).__init__()
 
         self.config = config
-        self.spec_size = spec_size
-        self.patch_stride = patch_stride
-        self.patch_size = patch_size
-        self.window_size = window_size
-        self.embed_dim = embed_dim
-        self.depths = depths
-        self.ape = ape
-        self.in_chans = in_chans
-        self.num_classes = num_classes
-        self.num_heads = num_heads
+        self.spec_size = 256
+        self.patch_stride = (4, 4)
+        self.patch_size = 4
+        self.window_size = 8
+        self.embed_dim = self.config["embed_dim"]
+        self.depths = self.config["depths"]
+        self.mel_bins = self.config["mel_bins"]
+        self.ape = False
+        self.in_chans = 1
+        self.num_classes = self.config["num_classes"]
+        self.num_heads = [4, 8, 16, 32]
         self.num_layers = len(self.depths)
         self.num_features = int(self.embed_dim * 2 ** (self.num_layers - 1))
 
-        self.drop_rate = drop_rate
-        self.attn_drop_rate = attn_drop_rate
-        self.drop_path_rate = drop_path_rate
+        self.drop_rate = 0.
+        self.attn_drop_rate = 0.
+        self.drop_path_rate = 0.1
 
-        self.qkv_bias = qkv_bias
+        self.qkv_bias = True
         self.qk_scale = None
 
-        self.patch_norm = patch_norm
+        self.patch_norm = True
         self.norm_layer = norm_layer if self.patch_norm else None
-        self.norm_before_mlp = norm_before_mlp
-        self.mlp_ratio = mlp_ratio
+        self.norm_before_mlp = "ln"
+        self.mlp_ratio = 4.
 
-        self.use_checkpoint = use_checkpoint
+        self.use_fusion = self.config["use_fusion"]
+
+        self.use_checkpoint = False
 
         #  process mel-spec ; used only once
-        self.freq_ratio = self.spec_size // self.config.mel_bins
-        window = 'hann'
-        center = True
-        pad_mode = 'reflect'
-        ref = 1.0
-        amin = 1e-10
-        top_db = None
+        self.freq_ratio = self.spec_size // self.mel_bins
+
         self.interpolate_ratio = 32  # Downsampled ratio
-        # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=config.window_size, hop_length=config.hop_size,
-                                                 win_length=config.window_size, window=window, center=center,
-                                                 pad_mode=pad_mode,
-                                                 freeze_parameters=True)
-        # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=config.sample_rate, n_fft=config.window_size,
-                                                 n_mels=config.mel_bins, fmin=config.fmin, fmax=config.fmax, ref=ref,
-                                                 amin=amin, top_db=top_db,
-                                                 freeze_parameters=True)
+
         # Spec augmenter
         self.spec_augmenter = SpecAugmentation(time_drop_width=64, time_stripes_num=2,
-                                               freq_drop_width=8, freq_stripes_num=2)  # 2 2
-        self.bn0 = nn.BatchNorm2d(self.config.mel_bins)
+                                               freq_drop_width=8, freq_stripes_num=2)
+
+        self.bn0 = nn.BatchNorm2d(self.mel_bins)
 
         # split spctrogram into non-overlapping patches
         self.patch_embed = PatchEmbed(
             img_size=self.spec_size, patch_size=self.patch_size, in_chans=self.in_chans,
-            embed_dim=self.embed_dim, norm_layer=self.norm_layer, patch_stride=patch_stride)
+            embed_dim=self.embed_dim, norm_layer=self.norm_layer, patch_stride=self.patch_stride, use_fusion=self.use_fusion)
 
         num_patches = self.patch_embed.num_patches
         patches_resolution = self.patch_embed.grid_size
@@ -686,7 +702,7 @@ class HTSAT_Swin_Transformer(nn.Module):
                                drop_path=dpr[sum(self.depths[:i_layer]):sum(self.depths[:i_layer + 1])],
                                norm_layer=self.norm_layer,
                                downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
-                               use_checkpoint=use_checkpoint,
+                               use_checkpoint=self.use_checkpoint,
                                norm_before_mlp=self.norm_before_mlp)
             self.layers.append(layer)
 
@@ -701,7 +717,7 @@ class HTSAT_Swin_Transformer(nn.Module):
             kernel_size=(SF, 3),
             padding=(0, 1)
         )
-        self.head = nn.Linear(num_classes, num_classes)
+        self.head = nn.Linear(self.num_classes, self.num_classes)
 
         self.apply(self._init_weights)
 
@@ -722,9 +738,9 @@ class HTSAT_Swin_Transformer(nn.Module):
     def no_weight_decay_keywords(self):
         return {'relative_position_bias_table'}
 
-    def forward_features(self, x):
+    def forward_features(self, x, longer_list_idx):
         frames_num = x.shape[2]
-        x = self.patch_embed(x)
+        x = self.patch_embed(x, longer_list_idx)
         if self.ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
@@ -808,72 +824,60 @@ class HTSAT_Swin_Transformer(nn.Module):
         x = x.repeat(repeats=(1, 1, 4, 1))
         return x
 
-    def forward(self, x: torch.Tensor, mixup_lambda=None, infer_mode=False):  # out_feat_keys: List[str] = None):
-        x = self.spectrogram_extractor(x)  # (batch_size, 1, time_steps, freq_bins)
-        x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
+    def forward(self, x: dict[str, torch.Tensor], mixup_lambda=None, infer_mode=False):  # out_feat_keys: List[str] = None):
+        longer_list = x["is_longer"]
+        longer_list_idx = torch.where(longer_list)[0]
+
+        x = x["audio"]
 
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)
+
+        # if infer_mode:
+        #     # in infer mode. we need to handle different length audio input
+        #     frame_num = x.shape[2]
+        #     target_T = int(self.spec_size * self.freq_ratio)
+        #     repeat_ratio = math.floor(target_T / frame_num)
+        #     x = x.repeat(repeats=(1, 1, repeat_ratio, 1))
+        #     x = self.reshape_wav2img(x)
+        #     output_dict = self.forward_features(x)
+        # else:
+        #     if x.shape[2] > self.freq_ratio * self.spec_size:
+        #         if self.training:
+        #             x = self.crop_wav(x, crop_size=self.freq_ratio * self.spec_size)
+        #             x = self.reshape_wav2img(x)
+        #             output_dict = self.forward_features(x)
+        #         else:
+        #             # Change: Hard code here
+        #             overlap_size = (x.shape[2] - 1) // 4
+        #             output_dicts = []
+        #             crop_size = (x.shape[2] - 1) // 2
+        #             for cur_pos in range(0, x.shape[2] - crop_size - 1, overlap_size):
+        #                 tx = self.crop_wav(x, crop_size=crop_size, spe_pos=cur_pos)
+        #                 tx = self.reshape_wav2img(tx)
+        #                 output_dicts.append(self.forward_features(tx))
+        #             clipwise_output = torch.zeros_like(output_dicts[0]["clipwise_output"]).float().to(x.device)
+        #             framewise_output = torch.zeros_like(output_dicts[0]["framewise_output"]).float().to(x.device)
+        #             for d in output_dicts:
+        #                 clipwise_output += d["clipwise_output"]
+        #                 framewise_output += d["framewise_output"]
+        #             clipwise_output = clipwise_output / len(output_dicts)
+        #             framewise_output = framewise_output / len(output_dicts)
+        #             output_dict = {
+        #                 'framewise_output': framewise_output,
+        #                 'clipwise_output': clipwise_output
+        #             }
+        #     else:  # this part is typically used, and most easy one
+        #         x = self.reshape_wav2img(x)
+        #         output_dict = self.forward_features(x)
+
         if self.training:
             x = self.spec_augmenter(x)
         if self.training and mixup_lambda is not None:
             x = do_mixup(x, mixup_lambda)
 
-        if infer_mode:
-            # in infer mode. we need to handle different length audio input
-            frame_num = x.shape[2]
-            target_T = int(self.spec_size * self.freq_ratio)
-            repeat_ratio = math.floor(target_T / frame_num)
-            x = x.repeat(repeats=(1, 1, repeat_ratio, 1))
-            x = self.reshape_wav2img(x)
-            output_dict = self.forward_features(x)
-        else:
-            if x.shape[2] > self.freq_ratio * self.spec_size:
-                if self.training:
-                    x = self.crop_wav(x, crop_size=self.freq_ratio * self.spec_size)
-                    x = self.reshape_wav2img(x)
-                    output_dict = self.forward_features(x)
-                else:
-                    # Change: Hard code here
-                    overlap_size = (x.shape[2] - 1) // 4
-                    output_dicts = []
-                    crop_size = (x.shape[2] - 1) // 2
-                    for cur_pos in range(0, x.shape[2] - crop_size - 1, overlap_size):
-                        tx = self.crop_wav(x, crop_size=crop_size, spe_pos=cur_pos)
-                        tx = self.reshape_wav2img(tx)
-                        output_dicts.append(self.forward_features(tx))
-                    clipwise_output = torch.zeros_like(output_dicts[0]["clipwise_output"]).float().to(x.device)
-                    framewise_output = torch.zeros_like(output_dicts[0]["framewise_output"]).float().to(x.device)
-                    for d in output_dicts:
-                        clipwise_output += d["clipwise_output"]
-                        framewise_output += d["framewise_output"]
-                    clipwise_output = clipwise_output / len(output_dicts)
-                    framewise_output = framewise_output / len(output_dicts)
-                    output_dict = {
-                        'framewise_output': framewise_output,
-                        'clipwise_output': clipwise_output
-                    }
-            else:  # this part is typically used, and most easy one
-                x = self.reshape_wav2img(x)
-                output_dict = self.forward_features(x)
+        x = self.reshape_wav2img(x)
+        output_dict = self.forward_features(x, longer_list_idx=longer_list_idx)
 
         return output_dict
-
-
-class HTSAT(nn.Module):
-    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
-                 fmax, classes_num, out_emb):
-        super().__init__()
-
-        # print("parameters are being overidden when using HTSAT")
-        # print("HTSAT only support loading a pretrained model on AudioSet")
-
-        self.htsat = HTSAT_Swin_Transformer()
-
-    def forward(self, x):
-        out_dict = self.htsat(x)
-        return out_dict
-
-# TODO: Implement factory and think about which parameters to use / change forward function
-# TODO: Complete forward call

@@ -3,6 +3,8 @@ from pathlib import Path
 import yaml
 
 import torch
+import torchaudio
+import torchaudio.transforms as T
 
 
 def load_config(config: dict | Path | str) -> dict:
@@ -11,6 +13,18 @@ def load_config(config: dict | Path | str) -> dict:
             config = yaml.safe_load(f)
 
     return config
+
+
+def load_audio(audio_path: Path | str, target_sampling_rate, resample: bool = True):
+    """Loads the given audio and resamples it if wanted"""
+    audio, sampling_rate = torchaudio.load(audio_path)
+
+    if resample and sampling_rate != target_sampling_rate:
+        resampler = T.Resample(sampling_rate, target_sampling_rate)
+        audio = resampler(audio)
+        sampling_rate = target_sampling_rate
+
+    return audio.reshape(-1), sampling_rate
 
 
 def get_target_device():

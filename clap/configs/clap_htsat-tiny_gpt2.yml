@@ -1,14 +1,14 @@
 # TEXT CONFIG
 text:
-    name: 'distilroberta-base'
+    name: 'gpt2'
     max_len: 77
     out_size: 768
 
 # AUDIO CONFIG
 audio:
-    name: 'Cnn14'
-    pretrained_path: 'clap/model/layers/audio_encoders/cnn14/Cnn14_mAP=0.431.pth'
-    sampling_rate: 44100
+    name: 'htsat-tiny'
+    pretrained_path: 'clap/model/layers/audio_encoders/htsat/HTSAT_AudioSet_Saved_1.ckpt'
+    sampling_rate: 32000
     duration: 10
     use_fusion: True
     window_size: 1024
@@ -17,7 +17,9 @@ audio:
     f_min: 50
     f_max: 14000
     num_classes: 527 # AudioSet classes. Not useful for me as I do not utilize the classification output of the audio encoder.
-    out_size: 2048
+    depths: [2, 2, 6, 2]
+    embed_dim: 96
+    out_size: 768
 
 # PROJECTION CONFIG 
 projection:

@@ -11,12 +11,12 @@ class AudioDataset(Dataset, ABC):
     def __init__(
             self,
             kind: Literal["train", "val", "test"] = "train",
-            download: bool = False,
+            download: bool = False
     ):
         """Initialize the audio dataset and download it if needed."""
         self.kind = kind
         self.download = download
-        self.data, self.captions = self.__get_sample()
+        self.data, self.captions = self.get_samples()
 
     def __getitem__(self, index: int):
         """Returns file given an index."""
@@ -30,5 +30,5 @@ class AudioDataset(Dataset, ABC):
         return len(self.data)
 
     @abstractmethod
-    def __get_sample(self):
+    def get_samples(self):
         raise NotImplementedError

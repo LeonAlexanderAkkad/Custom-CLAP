@@ -42,10 +42,10 @@ class SymmetricCrossEntropyLoss(nn.Module):
             A scalar tensor representing the symmetric cross-entropy loss.
         """
         # Compute Cross-entropy loss along the text axis
-        text_loss = F.cross_entropy(similarity, torch.arange(similarity.shape[0]).to(similarity.device))
+        audio_loss = F.cross_entropy(similarity, torch.arange(similarity.shape[0]).to(similarity.device))
 
         # Compute Cross-entropy loss along the audio axis
-        audio_loss = F.cross_entropy(similarity.T, torch.arange(similarity.shape[0]).to(similarity.device))
+        text_loss = F.cross_entropy(similarity.T, torch.arange(similarity.shape[0]).to(similarity.device))
 
         # Compute symmetric Cross-entropy loss
         return 0.5 * (text_loss + audio_loss)
