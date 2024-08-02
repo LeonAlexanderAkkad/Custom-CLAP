@@ -13,7 +13,7 @@ class BatchMetrics:
     batch_r10_t2a: list[float] = field(default_factory=list)
     batch_map_t2a: list[float] = field(default_factory=list)
 
-    def add_metrics(
+    def update(
             self,
             loss: float,
             r1_a2t: float,
@@ -64,7 +64,7 @@ class EpochMetrics:
     epoch_r10_t2a: list[float] = field(default_factory=list)
     epoch_map_t2a: list[float] = field(default_factory=list)
 
-    def add_epoch_metrics(self, batch_avg_metrics: dict[str, float]):
+    def update(self, batch_avg_metrics: dict[str, float]):
         self.epoch_losses.append(batch_avg_metrics["loss"])
         self.epoch_r1_a2t.append(batch_avg_metrics["r1_a2t"])
         self.epoch_r5_a2t.append(batch_avg_metrics["r5_a2t"])

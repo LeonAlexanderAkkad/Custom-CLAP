@@ -43,7 +43,7 @@ from torch.optim import Adam
 
 # Load the model using a path to a config file (primarily for training)
 # The path to the pretrained audio encoder has to be specified in the config
-config_path = "clap/configs/clap_cnn14_roberta.yml"
+config_path = "clap/configs/clap_cnn14_distilroberta-base_v1.yml"
 clap_from_config = Clap(config=config_path)
 
 # Alternatively, load a trained model from a checkpoint file
@@ -51,13 +51,16 @@ clap_from_config = Clap(config=config_path)
 clap_from_ckpt = Clap.from_ckpt(ckpt="clap/checkpoints/clap_cnn14_roberta.ckpt")
 
 # Initialize ClapDataset and DataLoaders
-train_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="train", download=True, config=config_path, preprocess_audio=True)
+train_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="train", download=True, config=config_path,
+                            preprocess_audio=True)
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="val", download=True, config=config_path, preprocess_audio=True)
+val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="val", download=True, config=config_path,
+                          preprocess_audio=True)
 val_loader = DataLoader(train_dataset, batch_size=32)
 
-test_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="test", download=True, config=config_path, preprocess_audio=True)
+test_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="test", download=True, config=config_path,
+                           preprocess_audio=True)
 test_loader = DataLoader(test_dataset, batch_size=32)
 
 # Specify loss and optimizer
@@ -78,14 +81,17 @@ The audio needs to be preprocessed first, thus setting `preprocess_audio=True` a
 The user does should not rename/move these files, as there location is important for the `ClapDataset`.
 
 Examples:
+
 ```python
 from clap import ClapDataset
 
-
-config_path = "clap/configs/clap_cnn14_roberta.yml"
-clotho_train_dataset = ClapDataset(datasets=["Clotho"], kind="train", download=True, config=config_path, preprocess_audio=True)
-audiocaps_test_dataset = ClapDataset(datasets=["AudioCaps"], kind="test", download=True, config=config_path, preprocess_audio=True)
-combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="val", download=True, config=config_path, preprocess_audio=True)
+config_path = "clap/configs/clap_cnn14_distilroberta-base_v1.yml"
+clotho_train_dataset = ClapDataset(datasets=["Clotho"], kind="train", download=True, config=config_path,
+                                   preprocess_audio=True)
+audiocaps_test_dataset = ClapDataset(datasets=["AudioCaps"], kind="test", download=True, config=config_path,
+                                     preprocess_audio=True)
+combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="val", download=True, config=config_path,
+                                   preprocess_audio=True)
 ```
 
 ## References

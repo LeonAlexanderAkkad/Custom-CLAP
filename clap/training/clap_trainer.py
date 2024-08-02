@@ -1,5 +1,6 @@
 import random
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -15,17 +16,69 @@ from torch.optim.lr_scheduler import LRScheduler
 
 import os
 
-from clap.utils import get_target_device
-from clap.model import Clap
+from .metrics import BatchMetrics, EpochMetrics
+from ..utils import get_target_device
+from ..model import Clap
 
 
-# TODO: Add metrics dataclass and training from ckpt
 # TODO: Start training
 # TODO: Implement new evaluation Dataset for downstream tasks
 # TODO: Change relative imports in __init__ files
-# TODO: Maybe change Checkpoint naming convention
+# TODO: Update docstrings and readme as well as provide metric and examples
 
 class ClapTrainer:
+    """A trainer class for optimizing and evaluating the Clap model.
+
+    This class handles the training, evaluation, and checkpoint loading for the Clap model.
+
+    Attributes
+    ----------
+    train_loader : DataLoader
+        DataLoader for the training dataset.
+    val_loader : DataLoader
+        DataLoader for the validation dataset.
+    test_loader : DataLoader
+        DataLoader for the test dataset.
+    model : Clap
+        The Clap model to be trained.
+    optimizer : Optimizer
+        The optimizer used for training.
+    loss_fn : nn.Module
+        The loss function used during training.
+    epochs : int
+        The total number of training epochs.
+    scheduler : LRScheduler
+        The learning rate scheduler used during training.
+    train_epoch_metrics : EpochMetrics
+        Metrics computed over training epochs.
+    val_epoch_metrics : EpochMetrics
+        Metrics computed over validation epochs.
+    test_epoch_metrics : EpochMetrics
+        Metrics computed over test epochs.
+    current_epoch : int
+        Current epoch number.
+
+    Methods
+    -------
+    from_ckpt(cls, ckpt, optimizer, scheduler, train_loader, val_loader, test_loader, epochs)
+        Creates an instance of ClapTrainer from a checkpoint file.
+    compute_recall_at_k(similarity, k)
+        Compute Recall@K for a given similarity matrix.
+    compute_average_precision(scores, labels)
+        Compute Average Precision (AP) for a single query.
+    compute_mean_average_precision(similarity, k=None)
+        Compute mean Average Precision (mAP) or mean Average Precision at k (mAP@k).
+    set_random_seed(seed=None)
+        Set the random seed for reproducibility.
+    get_lr(optimizer)
+        Get the learning rate used for optimizing.
+    train_and_eval(out_path, early_stopping=False)
+        Optimizes a given model for a number of epochs and saves the best model.
+    eval_model(test_set=False)
+        Evaluates a given model on valuation or test data.
+    train_model()
+        Trains a given model on the training data.
+    """
     def __init__(
             self,
             train_loader: DataLoader,
@@ -33,48 +86,61 @@ class ClapTrainer:
             test_loader: DataLoader,
             model: Clap,
             optimizer: Optimizer,
-            loss_fun: nn.Module,
+            loss_fn: nn.Module,
             epochs: int,
             scheduler: LRScheduler
     ):
+        """Initializes a ClapTrainer instance for training, validating, and testing a Clap model.
+
+        Parameters
+        ----------
+        train_loader : DataLoader
+            DataLoader instance for loading training data in batches.
+        val_loader : DataLoader
+            DataLoader instance for loading validation data in batches.
+        test_loader : DataLoader
+            DataLoader instance for loading test data in batches.
+        model : Clap
+            The Clap model to be trained and evaluated.
+        optimizer : Optimizer
+            The optimizer used for updating the model parameters.
+        loss_fn : nn.Module
+            The loss function used to compute the loss during training and evaluation.
+        epochs : int
+            The number of epochs to train the model.
+        scheduler : LRScheduler
+            Learning rate scheduler to adjust the learning rate during training.
+        """
+
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.model = model
         self.optimizer = optimizer
-        self.loss_fun = loss_fun
+        self.loss_fn = loss_fn
         self.scheduler = scheduler
+        self.train_epoch_metrics = EpochMetrics()
+        self.val_epoch_metrics = EpochMetrics()
+        self.test_epoch_metrics = EpochMetrics()
+        self.current_epoch = 0
+        self.epochs = epochs
         self._lr = self.get_lr(self.optimizer)
-        self._epochs = epochs
         self._device = get_target_device()
         self._global_train_step = 0
         self._global_val_step = 0
         self._global_test_step = 0
-        self._current_epoch = 0
-
-    @property
-    def epochs(self):
-        return self._epochs
-
-    @epochs.setter
-    def epochs(self, new_epoch):
-        if isinstance(new_epoch, int) and new_epoch > 0:
-            self._epochs = new_epoch
-            return
-
-        print("Please enter a valid epoch")
 
     def train_and_eval(
             self,
             out_path: str,
             early_stopping: bool = False
-    ) -> tuple[float, float, float, float, float, float, float]:
+    ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
         """Optimizes a given model for a number of epochs and saves the best model.
 
-        The function computes both the defined loss and the accuracy between the output of the model and the given target.
+        The function computes both the defined loss and metrics like Recall@K and mAP for A-T and T-A respectively.
         Depending on the best loss on the validation data, the best model is then saved to the specified file.
         Moreover, wandb is utilized in order to monitor the training process.
-        Finally, a scheduling of the learning rate is implemented as well.
+        Finally, a scheduling of the learning rate is utilized as well.
 
         Parameters
         ----------
@@ -85,130 +151,139 @@ class ClapTrainer:
 
         Returns
         -------
-        Tuple[float, float, float, float, float, float, float]
-            A tuple containing the final test loss and Recall@K.
+        tuple[dict[str, float], dict[str, float], dict[str, float]]
+            Dictionaries for the train, validation and test average metrics computed during training and/or evaluation.
         """
 
-        best_loss = 0
+        best_loss = None
         # Tell wandb to watch the model.
-        wb.watch(self.model, criterion=self.loss_fun, log="all", log_freq=10)
-        train_losses = []
-        train_accuracies = []
-        validation_losses = []
-        validation_accuracies = []
+        wb.watch(self.model, criterion=self.loss_fn, log="all", log_freq=10)
+
         print("\nStarting to train Model")
         for epoch in range(self.epochs):
 
-            train_loss, train_r1_a2t, train_r5_a2t, train_r10_a2t, train_map_a2t, train_r1_t2a, train_r5_t2a, train_r10_t2a, train_map_t2a = self.train_model()
-            val_loss, val_r1_a2t, val_r5_a2t, val_r10_a2t, val_map_a2t, val_r1_t2a, val_r5_t2a, val_r10_t2a, val_map_t2a = self.eval_model()
+            # Get epoch metrics
+            train_metrics = self.train_model()
+            val_metrics = self.eval_model()
+
+            # Update epoch metrics
+            self.train_epoch_metrics.update(train_metrics)
+            self.val_epoch_metrics.update(val_metrics)
 
             # Update scheduler
             self.scheduler.step()
 
             wb.log(
                 {
-                    "train/loss": train_loss,
-                    "train/a2t/recall@1": train_r1_a2t,
-                    "train/a2t/recall@5": train_r5_a2t,
-                    "train/a2t/recall@10": train_r10_a2t,
-                    "train/a2t/mAP": train_map_a2t,
-                    "train/t2a/recall@1": train_r1_t2a,
-                    "train/t2a/recall@5": train_r5_t2a,
-                    "train/t2a/recall@10": train_r10_t2a,
-                    "train/t2a/mAP": train_map_t2a,
-                    "val/loss": val_loss,
-                    "val/a2t/recall@1": val_r1_a2t,
-                    "val/a2t/recall@5": val_r5_a2t,
-                    "val/a2t/recall@10": val_r10_a2t,
-                    "val/a2t/mAP": val_map_a2t,
-                    "val/t2a/recall@1": val_r1_t2a,
-                    "val/t2a/recall@5": val_r5_t2a,
-                    "val/t2a/recall@10": val_r10_t2a,
-                    "val/t2a/mAP": val_map_t2a,
-                    "epoch": self._current_epoch
+                    "train/loss": train_metrics["avg_loss"],
+                    "train/a2t/recall@1": train_metrics["avg_r1_a2t"],
+                    "train/a2t/recall@5": train_metrics["avg_r5_a2t"],
+                    "train/a2t/recall@10": train_metrics["avg_r10_a2t"],
+                    "train/a2t/mAP": train_metrics["avg_map_a2t"],
+                    "train/t2a/recall@1": train_metrics["avg_r1_t2a"],
+                    "train/t2a/recall@5": train_metrics["avg_r5_t2a"],
+                    "train/t2a/recall@10": train_metrics["avg_r10_t2a"],
+                    "train/t2a/mAP": train_metrics["avg_map_t2a"],
+                    "val/loss": val_metrics["avg_loss"],
+                    "val/a2t/recall@1": val_metrics["avg_r1_a2t"],
+                    "val/a2t/recall@5": val_metrics["avg_r5_a2t"],
+                    "val/a2t/recall@10": val_metrics["avg_r10_a2t"],
+                    "val/a2t/mAP": val_metrics["avg_map_a2t"],
+                    "val/t2a/recall@1": val_metrics["avg_r1_t2a"],
+                    "val/t2a/recall@5": val_metrics["avg_r5_t2a"],
+                    "val/t2a/recall@10": val_metrics["avg_r10_t2a"],
+                    "val/t2a/mAP": val_metrics["avg_map_t2a"],
+                    "epoch": self.current_epoch
                 }
             )
 
             print(
-                f"\nEpoch: {str(self._current_epoch + 1).zfill(len(str(self.epochs)))} (lr={self._lr}) || "
-                f"Training loss: {train_loss:.4f} || "
-                f"Validation loss: {val_loss:.4f} || "
-                f"Training A-T R@1: {train_r1_a2t:.4f} || "
-                f"Validation A-T R@1: {val_r1_a2t:.4f} || "
-                f"Training A-T mAp: {train_map_a2t:.4f} || "
-                f"Validation A-T mAP: {val_map_a2t:.4f} || "
-                f"Training T-A R@1: {train_r1_t2a:.4f} || "
-                f"Validation T-A R@1: {val_r1_t2a:.4f} || "
-                f"Training T-A mAP: {train_map_t2a:.4f} || "
-                f"Validation T-A mAP: {val_map_t2a:.4f} || "
+                f"\nEpoch: {str(self.current_epoch + 1).zfill(len(str(self.epochs)))} (lr={self._lr}) || "
+                f"Training loss: {train_metrics['avg_loss']:.4f} || "
+                f"Validation loss: {val_metrics['avg_loss']:.4f} || "
+                f"Training A-T R@1: {train_metrics['avg_r1_a2t']:.4f} || "
+                f"Validation A-T R@1: {val_metrics['avg_r1_a2t']:.4f} || "
+                f"Training A-T mAp: {train_metrics['avg_map_a2t']:.4f} || "
+                f"Validation A-T mAP: {val_metrics['avg_map_a2t']:.4f} || "
+                f"Training T-A R@1: {train_metrics['avg_r1_t2a']:.4f} || "
+                f"Validation T-A R@1: {val_metrics['avg_r1_t2a']:.4f} || "
+                f"Training T-A mAP: {train_metrics['avg_map_t2a']:.4f} || "
+                f"Validation T-A mAP: {val_metrics['avg_map_t2a']:.4f}"
             )
 
             # Check for early stopping.
             if early_stopping:
-                if np.argmin(validation_losses) <= epoch - 5:
+                if np.argmin(self.val_epoch_metrics.epoch_losses) <= epoch - 5:
                     print(f"\nEarly stopping on epoch {epoch}!")
-                    test_loss, test_r1_t2a, test_r5_t2a, test_r10_t2a, test_r1_a2t, test_r5_a2t, test_r10_a2t = self.eval_model(
-                        save_predictions=True)
+                    # Get test metrics and update the epoch metrics
+                    test_metrics = self.eval_model(test_set=True)
+                    self.test_epoch_metrics.update(test_metrics)
+
                     print(
-                        f"\nFinal loss: {test_loss} || Final test T-A R@1: {test_r1_t2a:.4f} || Final test A-T R@1: {test_r1_a2t:.4f}")
+                        f"\nFinal loss: {test_metrics['avg_loss']} || "
+                        f"Final test T-A R@1: {test_metrics['avg_r1_t2a']:.4f} || "
+                        f"Final test A-T R@1: {test_metrics['avg_r1_a2t']:.4f} || "
+                        f"Final test T-A mAP: {test_metrics['avg_map_t2a']:.4f} || "
+                        f"Final test A-T mAP: {test_metrics['avg_map_a2t']:.4f}"
+                    )
                     print("\nDone!")
 
-                    return test_loss, test_r1_t2a, test_r5_t2a, test_r10_t2a, test_r1_a2t, test_r5_a2t, test_r10_a2t
+                    return (self.train_epoch_metrics.compute_average_epoch_metrics(),
+                            self.test_epoch_metrics.compute_average_epoch_metrics(),
+                            self.val_epoch_metrics.compute_average_epoch_metrics())
 
-            # Either save the best model or adapt the learning rate if necessary.
-            if not best_loss or val_loss < best_loss:
-                best_loss = val_loss
-                torch.save({"epoch": self._current_epoch,
-                            "model": self.model.state_dict(),
-                            "optimizer": self.optimizer.state_dict(),
-                            "best_val_loss": best_loss}, out_path)
+            # Save the best model
+            if not best_loss or val_metrics["avg_loss"] < best_loss:
+                best_loss = val_metrics["avg_loss"]
+                torch.save({
+                    "epoch": self.current_epoch,
+                    "model": self.model.state_dict(),
+                    "loss_fn": self.loss_fn,
+                    "train_metrics": self.train_epoch_metrics,
+                    "val_metrics": self.val_epoch_metrics
+                }, out_path)
                 print(f"\nModel saved to {out_path}")
 
             print("\n" + 100 * "=")
 
-        test_loss, test_r1_t2a, test_r5_t2a, test_r10_t2a, test_r1_a2t, test_r5_a2t, test_r10_a2t = self.eval_model(
-            save_predictions=True)
+        # Get test metrics and update the epoch metrics
+        test_metrics = self.eval_model(test_set=True)
+        self.test_epoch_metrics.update(test_metrics)
 
         # Necessary to work with model in jupyter notebook after training is done.
         wb.unwatch(self.model)
 
         print(
-            f"\nFinal loss: {test_loss} || Final test T-A R@1: {test_r1_t2a:.4f} || Final test A-T R@1: {test_r1_a2t:.4f}")
+            f"\nFinal loss: {test_metrics['avg_loss']} || "
+            f"Final test T-A R@1: {test_metrics['avg_r1_t2a']:.4f} || "
+            f"Final test A-T R@1: {test_metrics['avg_r1_a2t']:.4f} || "
+            f"Final test T-A mAP: {test_metrics['avg_map_t2a']:.4f} || "
+            f"Final test A-T mAP: {test_metrics['avg_map_a2t']:.4f}"
+        )
         print("\nDone!")
 
-        return test_loss, test_r1_t2a, test_r5_t2a, test_r10_t2a, test_r1_a2t, test_r5_a2t, test_r10_a2t
+        return (self.train_epoch_metrics.compute_average_epoch_metrics(),
+                self.test_epoch_metrics.compute_average_epoch_metrics(),
+                self.val_epoch_metrics.compute_average_epoch_metrics())
 
-    def eval_model(self, save_predictions: bool = False) -> tuple[
-        float, float, float, float, float, float, float, float, float]:
+    def eval_model(self, test_set: bool = False) -> dict[str, float]:
         """Evaluates a given model on test data.
 
         Parameters
         ----------
-        save_predictions: bool = False
-            Bool used to decide whether to log the model predictions or not.
+        test_set: bool = False
+            Bool used to decide whether to log the model predictions as test or validation performance.
 
         Returns
         -------
-        float, float, float, float, float, float, float, float, float
-            The specified average loss and average Recall@K
-            as well as mean Average Precision for Audio to Text and vice versa.
+        dict[str, float]
+            A dictionary containing all metrics computed during evaluation.
         """
 
         # Turn on evaluation mode for the model.
         self.model.eval()
 
-        total_loss = []
-
-        total_r1_a2t = []
-        total_r5_a2t = []
-        total_r10_a2t = []
-        total_map_a2t = []
-
-        total_r1_t2a = []
-        total_r5_t2a = []
-        total_r10_t2a = []
-        total_map_t2a = []
-        # test_table = self.create_table() if save_predictions else None
+        batch_metrics = BatchMetrics()
 
         # Compute the loss with torch.no_grad() as gradients aren't used.
         with torch.no_grad():
@@ -217,31 +292,26 @@ class ClapTrainer:
                 # Compute similarity matrix and loss
                 text_em, audio_em, _ = self.model(caption, audio)
                 similarity = self.model.compute_similarity(text_em, audio_em)
-                loss = self.loss_fun(similarity)
+                loss = self.loss_fn(similarity)
 
                 # Audio-to-Text retrieval
                 r1_a2t = self.compute_recall_at_k(similarity, k=1)
                 r5_a2t = self.compute_recall_at_k(similarity, k=5)
                 r10_a2t = self.compute_recall_at_k(similarity, k=10)
                 map_a2t = self.compute_mean_average_precision(similarity)
-                total_r1_a2t.append(r1_a2t)
-                total_r5_a2t.append(r5_a2t)
-                total_r10_a2t.append(r10_a2t)
-                total_map_a2t.append(map_a2t)
 
                 # Text-to-Audio retrieval
                 r1_t2a = self.compute_recall_at_k(similarity.T, k=1)
                 r5_t2a = self.compute_recall_at_k(similarity.T, k=5)
                 r10_t2a = self.compute_recall_at_k(similarity.T, k=10)
                 map_t2a = self.compute_mean_average_precision(similarity.T)
-                total_r1_t2a.append(r1_t2a)
-                total_r5_t2a.append(r5_t2a)
-                total_r10_t2a.append(r10_t2a)
-                total_map_t2a.append(map_t2a)
+
+                # Log metrics
+                batch_metrics.update(loss=loss.item(), r1_a2t=r1_a2t, r5_a2t=r5_a2t, r10_a2t=r10_a2t, map_a2t=map_a2t,
+                                     r1_t2a=r1_t2a, r5_t2a=r5_t2a, r10_t2a=r10_t2a, map_t2a=map_t2a)
 
                 # Log batch loss and accuracy as well as predictions.
-                if save_predictions:
-                    # self.log_pred_target(test_table, idx, output, target)
+                if test_set:
                     wb.log(
                         {
                             "test/batch loss": loss.item(),
@@ -274,76 +344,46 @@ class ClapTrainer:
                     )
                     self._global_val_step += 1
 
-                # Compute total loss.
-                total_loss.append(loss.item())
+        return batch_metrics.compute_average_metrics()
 
-            # log final table
-            # if save_predictions:
-            # wb.log({"test/predictions": test_table})
-
-        return (np.mean(np.array(total_loss)).item(),
-                np.mean(np.array(total_r1_a2t)).item(),
-                np.mean(np.array(total_r5_a2t)).item(),
-                np.mean(np.array(total_r10_a2t)).item(),
-                np.mean(np.array(total_map_a2t)).item(),
-                np.mean(np.array(total_r1_t2a)).item(),
-                np.mean(np.array(total_r5_t2a)).item(),
-                np.mean(np.array(total_r10_t2a)).item(),
-                np.mean(np.array(total_map_t2a)).item())
-
-    def train_model(self) -> tuple[float, float, float, float, float, float, float, float, float]:
+    def train_model(self) -> dict[str, float]:
         """Trains a given model on the training data.
 
         Returns
         -------
-        float, float, float, float, float, float, float, float, float
-            The specified average loss and average Recall@K
-            as well as mean Average Precision for Audio to Text and vice versa.
+        dict[str, float]
+            A dictionary containing all metrics computed during training.
         """
 
         # Put the model into train mode and enable gradients computation.
         self.model.train()
         torch.enable_grad()
 
-        total_loss = []
-
-        total_r1_a2t = []
-        total_r5_a2t = []
-        total_r10_a2t = []
-        total_map_a2t = []
-
-        total_r1_t2a = []
-        total_r5_t2a = []
-        total_r10_t2a = []
-        total_map_t2a = []
+        batch_metrics = BatchMetrics()
 
         lr = ClapTrainer.get_lr(self.optimizer)
 
-        for _, caption, audio in tqdm(self.train_loader, desc=f"Training epoch {self._current_epoch + 1} ({lr=})"):
+        for _, caption, audio in tqdm(self.train_loader, desc=f"Training epoch {self.current_epoch + 1} ({lr=})"):
             # Compute similarity matrix and loss
             text_em, audio_em, _ = self.model(caption, audio)
             similarity = self.model.compute_similarity(text_em, audio_em)
-            loss = self.loss_fun(similarity)
+            loss = self.loss_fn(similarity)
 
             # Audio-to-Text retrieval
             r1_a2t = self.compute_recall_at_k(similarity, k=1)
             r5_a2t = self.compute_recall_at_k(similarity, k=5)
             r10_a2t = self.compute_recall_at_k(similarity, k=10)
             map_a2t = self.compute_mean_average_precision(similarity)
-            total_r1_a2t.append(r1_a2t)
-            total_r5_a2t.append(r5_a2t)
-            total_r10_a2t.append(r10_a2t)
-            total_map_a2t.append(map_a2t)
 
             # Text-to-Audio retrieval
             r1_t2a = self.compute_recall_at_k(similarity.T, k=1)
             r5_t2a = self.compute_recall_at_k(similarity.T, k=5)
             r10_t2a = self.compute_recall_at_k(similarity.T, k=10)
             map_t2a = self.compute_mean_average_precision(similarity.T)
-            total_r1_t2a.append(r1_t2a)
-            total_r5_t2a.append(r5_t2a)
-            total_r10_t2a.append(r10_t2a)
-            total_map_t2a.append(map_t2a)
+
+            # Log metrics
+            batch_metrics.update(loss=loss.item(), r1_a2t=r1_a2t, r5_a2t=r5_a2t, r10_a2t=r10_a2t, map_a2t=map_a2t,
+                                 r1_t2a=r1_t2a, r5_t2a=r5_t2a, r10_t2a=r10_t2a, map_t2a=map_t2a)
 
             # Compute the gradients.
             loss.backward()
@@ -368,32 +408,122 @@ class ClapTrainer:
             )
 
             self._global_train_step += 1
-            # Compute the total loss.
-            total_loss.append(loss.item())
 
-        self._current_epoch += 1
+        self.current_epoch += 1
 
-        return (np.mean(np.array(total_loss)).item(),
-                np.mean(np.array(total_r1_a2t)).item(),
-                np.mean(np.array(total_r5_a2t)).item(),
-                np.mean(np.array(total_r10_a2t)).item(),
-                np.mean(np.array(total_map_a2t)).item(),
-                np.mean(np.array(total_r1_t2a)).item(),
-                np.mean(np.array(total_r5_t2a)).item(),
-                np.mean(np.array(total_r10_t2a)).item(),
-                np.mean(np.array(total_map_t2a)).item())
+        return batch_metrics.compute_average_metrics()
 
-    # TODO: implement abstract methods
+    @classmethod
+    def from_ckpt(
+            cls,
+            ckpt: Path | str,
+            optimizer: Optimizer,
+            scheduler: LRScheduler,
+            train_loader: DataLoader,
+            val_loader: DataLoader,
+            test_loader: DataLoader,
+            epochs: int
+    ) -> "ClapTrainer":
+        """Create an instance of ClapTrainer from a checkpoint file (e.g., a ckpt file).
 
-    # @abstractmethod
-    # def log_pred_target(self, test_table: wb.Table, idx: torch.Tensor, output: torch.Tensor, target: torch.Tensor):
-    #     """Log the predictions and the respective target to the test table."""
-    #     pass
-    #
-    # @abstractmethod
-    # def create_table(self) -> wb.Table:
-    #     """Creates a table to log predictions"""
-    #     pass
+        This method loads a Clap model and its associated training state from a checkpoint file.
+        It initializes the ClapTrainer with the loaded model, optimizer, scheduler, data loaders,
+        and other training parameters.
+
+        Parameters
+        ----------
+        ckpt : Path or str
+            The path to the checkpoint file.
+        optimizer : Optimizer
+            The optimizer to use for training.
+        scheduler : LRScheduler
+            The learning rate scheduler to use for training.
+        train_loader : DataLoader
+            The data loader for the training dataset.
+        val_loader : DataLoader
+            The data loader for the validation dataset.
+        test_loader : DataLoader
+            The data loader for the test dataset.
+        epochs : int
+            The total number of training epochs.
+
+        Returns
+        -------
+        ClapTrainer
+            An instance of the ClapTrainer class initialized with the checkpoint.
+
+        Examples
+        --------
+        **Example 1: Initializing with a Path object**
+
+        >>> ckpt_path = Path("path/to/checkpoint.ckpt")
+        >>> optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        >>> scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        >>> train_loader = torch.utils.data.DataLoader()
+        >>> val_loader = torch.utils.data.DataLoader()
+        >>> test_loader = torch.utils.data.DataLoader()
+        >>> epochs = 100
+        >>> trainer = ClapTrainer.from_ckpt(
+        ...     ckpt=ckpt_path,
+        ...     optimizer=optimizer,
+        ...     scheduler=scheduler,
+        ...     train_loader=train_loader,
+        ...     val_loader=val_loader,
+        ...     test_loader=test_loader,
+        ...     epochs=epochs
+        ... )
+
+        **Example 3: Handling errors**
+
+        Ensure the checkpoint file path is correct and the file is properly formatted:
+
+        >>> try:
+        ...     trainer = ClapTrainer.from_ckpt(
+        ...         ckpt="invalid/path/to/checkpoint.ckpt",
+        ...         optimizer=optimizer,
+        ...         scheduler=scheduler,
+        ...         train_loader=train_loader,
+        ...         val_loader=val_loader,
+        ...         test_loader=test_loader,
+        ...         epochs=epochs
+        ...     )
+        ... except FileNotFoundError:
+        ...     print("Checkpoint file not found.")
+        ... except KeyError as e:
+        ...     print(f"Checkpoint file is missing required key: {e}")
+
+        """
+        # Load model with specified encoder and version
+        audio_encoder = ckpt.split("_")[1]
+        text_encoder = ckpt.split("_")[2]
+        version = ckpt.split("_")[3][:2]
+        model = Clap.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, version=version)
+
+        # Load metrics and other hyperparameters
+        ckpt = torch.load(ckpt)
+        epoch = ckpt["epoch"]
+        train_metrics = ckpt["train_epoch_metrics"]
+        val_metrics = ckpt["val_epoch_metrics"]
+        loss_fn = ckpt["loss_fn"]
+
+        # Initialize trainer
+        trainer = cls(
+            train_loader=train_loader,
+            val_loader=val_loader,
+            test_loader=test_loader,
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            loss_fn=loss_fn,
+            epochs=epochs
+        )
+
+        # Set metrics and current epoch
+        trainer.train_epoch_metrics = train_metrics
+        trainer.val_epoch_metrics = val_metrics
+        trainer.current_epoch = epoch
+
+        return trainer
 
     @staticmethod
     def compute_recall_at_k(similarity: torch.Tensor, k: int) -> float:
