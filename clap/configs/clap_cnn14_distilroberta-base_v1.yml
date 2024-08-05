@@ -7,7 +7,7 @@ text:
 # AUDIO CONFIG
 audio:
     name: 'Cnn14'
-    pretrained_path: 'clap/model/layers/audio_encoders/cnn14/Cnn14_mAP=0.431.pth'
+    pretrained_abs_path: 'C:\Users\leon\Documents\ML_Projects\Custom-CLAP\clap\model\layers\audio_encoders\pretrained_audio_encoders\Cnn14_mAP=0.431.pth'
     sampling_rate: 44100
     duration: 10
     use_fusion: True
@@ -23,9 +23,9 @@ audio:
 projection:
     hidden_size: 1024
     out_size: 1024
-    # temperature: 0.003 IDK what to do with it yet.
 
 # TRAINING AND EVALUATION CONFIG
-learning_rate: 0.0001
-batch_size: 64
-epochs: 5
+training:
+    learning_rate: 0.0001
+    batch_size: 64
+    epochs: 5

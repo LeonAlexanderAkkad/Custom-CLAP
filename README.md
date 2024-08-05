@@ -1,18 +1,14 @@
 **Table of content:**
-- [Overview](#custom-contrastive-language-audio-pretraining)
-- [Setup](#setup)
-- [Usage](#usage)
-- [Datasets](#datasets)
-- [References](#references)
+
+[Overview](#custom-contrastive-language-audio-pretraining) | [Setup](#setup) | [Example usage](#example-usage) | [Datasets](#datasets) | [Results](#results) | [References](#references)
 
 # Custom Contrastive Language-Audio Pretraining
 This is a custom (unofficial) implementation of the model from the paper [CLAP: Learning Audio Concepts from Natural Language Supervision](https://doi.org/10.1109/ICASSP49357.2023.10095889).
 CLAP learns acoustic concepts from natural language supervision and excels in various tasks when fine-tuned as well as enables "Zero-Shot" inference.
 In order to improve the base implementation, I have included **improvements** like using a [Hierarchical Token Semantic Audio Transformer](https://doi.org/10.1109/ICASSP43922.2022.9746312) (**HTS-AT**) as audio encoder or **RoBERTa / GPT-2** as text encoder and [Attentional Feature Fusion](https://doi.org/10.1109/WACV48630.2021.00360) (**iAFF**) for effectively processing longer inputs.
-(Not implemented yet: Additionally, I will probably include caption enhancements for the implemented datasets using an appropriate model.)
 
 ## Setup
-This package can be easily installed with Conda. For this download this repository and do the following:
+This package can be easily installed with Conda. To do so, download this repository and do the following:
 ```shell
 # Move to the root directory
 cd path_to_root_directory
@@ -20,7 +16,7 @@ cd path_to_root_directory
 # Create a conda environment using either env_cuda.yml or env_cpu.yml
 conda env create -f env_cpu.yml
 ```
-Alternatively, you can first install the dependencies listed in the .yml file manually or with any other package manager and then do the following:
+Alternatively, you can first install the dependencies listed in the [Environment YAML](env_cpu.yml) file manually or with any other package manager and then do the following:
 ```shell
 # Move to the root directory
 cd path_to_root_directory
@@ -29,73 +25,213 @@ cd path_to_root_directory
 pip install -e .
 ```
 
-## Usage
-This package can be used to train and fine-tune a clap model with a pre-defined ClapTrainer class and the SymmetricCrossEntropyLoss.
-For further insights into the ClapDataset used for training have a look at [Datasets](#Datasets).
-Example usage:
-- Using the [Experiments Notebook](experiments.ipynb).
-- Using a python script:
+## Example Usage
+[Training](#training-clap-on-audiocaps-and-clothov2) | [Retrieval performance](#evaluating-the-retrieval-performance-of-clap-on-audiocaps-and-clothov2) | [Zero-Shot Audio Classification](#evaluating-the-zero-shot-performance-of-clap-on-the-esc-50-dataset)
+
+This package can be used to train and evaluate a clap model with a pre-defined `ClapTrainer` class and the `SymmetricCrossEntropyLoss`.
+For further insights into the `ClapDataset` used for training have a look at [Datasets](#Datasets).
+
+### Training CLAP on AudioCaps and ClothoV2
+For training, I employ the described loss from the paper, Adam optimizer and a learning rate scheduler that uses a warm-up and a cosine annealing phase.
+- Jupyter Notebook: [Training Notebook](examples/training.ipynb)
+- Python script:
 
 ```python
-from clap import Clap, ClapDataset, SymmetricCrossEntropyLoss, ClapTrainer
 from torch.utils.data import DataLoader
-from torch.optim import Adam
+from torch import optim
+from clap import Clap
+from clap.datasets import ClapDataset
+from clap.training import ClapTrainer, create_scheduler, SymmetricCrossEntropyLoss
+from clap.utils import get_target_device, load_clap_config
 
-# Load the model using a path to a config file (primarily for training)
-# The path to the pretrained audio encoder has to be specified in the config
-config_path = "clap/configs/clap_cnn14_distilroberta-base_v1.yml"
-clap_from_config = Clap(config=config_path)
+# Load config for audio processing and get target device
+audio_encoder = "htsat-tiny"
+text_encoder = "gpt2"
+cfg_version = 1
+ckpt_version = 1
+config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+device = get_target_device()
 
-# Alternatively, load a trained model from a checkpoint file
-# Be aware the checkpoint and the config file must have the same name
-clap_from_ckpt = Clap.from_ckpt(ckpt="clap/checkpoints/clap_cnn14_roberta.ckpt")
+# Load Datasets
+seed = ClapTrainer.set_random_seed(None)
+train_dataset = ClapDataset(config=config, kinds=["train"])
+val_dataset = ClapDataset(config=config, kinds=["val"])
+test_dataset = ClapDataset(config=config, kinds=["test"])
 
-# Initialize ClapDataset and DataLoaders
-train_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="train", download=True, config=config_path,
-                            preprocess_audio=True)
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+# Define data loaders
+train_loader = DataLoader(train_dataset, batch_size=config["training"]["batch_size"], shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=config["training"]["batch_size"])
+test_loader = DataLoader(test_dataset, batch_size=config["training"]["batch_size"])
 
-val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="val", download=True, config=config_path,
-                          preprocess_audio=True)
-val_loader = DataLoader(train_dataset, batch_size=32)
+# Define model, optimizer, scheduler and loss function
+clap = Clap(config).to(device)
+print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
+optimizer = optim.Adam(clap.parameters(), lr=config["training"]["learning_rate"])
+scheduler = create_scheduler(optimizer, warmup_steps=1000, T_max=len(train_loader)*config["training"]["epochs"], milestones=[1000])
+loss_fn = SymmetricCrossEntropyLoss()
+trainer = ClapTrainer(
+    train_loader=train_loader,
+    val_loader=val_loader,
+    test_loader=test_loader,
+    model=clap,
+    optimizer=optimizer,
+    scheduler=scheduler,
+    loss_fn=loss_fn,
+    epochs=config["training"]["epochs"]
+)
 
-test_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="test", download=True, config=config_path,
-                           preprocess_audio=True)
-test_loader = DataLoader(test_dataset, batch_size=32)
+train_metrics, val_metrics, test_metrics = trainer.train_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=1, early_stopping=False)
+```
 
-# Specify loss and optimizer
-criterion = SymmetricCrossEntropyLoss()
-optimizer = Adam(clap_from_config.parameters())
+### Evaluating the retrieval performance of CLAP on AudioCaps and ClothoV2
+For retrieval evaluation, I only test the trained model on the test sets of the respective datasets.
+- Jupyter Notebook: [Retrieval Notebook](examples/retrieval.ipynb)
+- Python script:
 
-# Load trainer and start training
-trainer = ClapTrainer(train_loader, val_loader, test_loader, clap_from_config, optimizer, criterion, epochs=10)
-metrics = trainer.train_and_eval(out_path="checkpoints/clap_cnn14_roberta.ckpt")
+```python
+from torch.utils.data import DataLoader
+from clap import Clap
+from clap.evaluate import eval_retrieval
+from clap.datasets import ClapDataset
+from clap.utils import get_target_device, load_clap_config
+
+# Load config for audio processing and get target device
+audio_encoder = "htsat-tiny"
+text_encoder = "gpt2"
+cfg_version = 1
+ckpt_version = 3
+config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+device = get_target_device()
+
+# Initialize evaluation datasets and dataloaders
+audio_caps_eval_dataset = ClapDataset(config=config, datasets=["AudioCaps"], kinds=["test"])
+audio_caps_loader = DataLoader(audio_caps_eval_dataset, batch_size=64, shuffle=False)
+clotho_eval_dataset = ClapDataset(config=config, datasets=["Clotho"], kinds=["test"])
+clotho_loader = DataLoader(clotho_eval_dataset, batch_size=64, shuffle=False)
+
+# Load trained model
+clap = Clap.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, cfg_version=cfg_version, ckpt_version=ckpt_version).to(device)
+
+# Get metrics
+audio_caps_metrics = eval_retrieval(model=clap, test_loader=audio_caps_loader)
+clotho_metrics = eval_retrieval(model=clap, test_loader=clotho_loader)
+
+print("Audio Caps:\n")
+for name, score in audio_caps_metrics.items():
+    print(f"{name:14}: {score:.4f}")
+
+print("Clotho:\n")
+for name, score in clotho_metrics.items():
+    print(f"{name:14}: {score:.4f}")
+```
+
+### Evaluating the Zero-Shot performance of CLAP on the ESC-50 dataset
+For Zero-Shot evaluation, I evaluate the trained model on the whole dataset and generate prompts from the classes and compute the similarity between the embeddings of these prompts and the audios.
+- Jupyter Notebook: [Zero-Shot classification Notebook](examples/zero_shot_classification.ipynb)
+- Python script:
+
+```python
+from torch.utils.data import DataLoader
+from clap import Clap
+from clap.evaluate import eval_zero_shot_classification
+from clap.datasets import ClapDataset
+from clap.utils import get_target_device, load_clap_config
+
+# Load config for audio processing and get target device
+audio_encoder = "htsat-tiny"
+text_encoder = "gpt2"
+cfg_version = 1
+ckpt_version = 3
+config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+device = get_target_device()
+
+# Load Dataset and DataLoader
+esc50_dataset = ClapDataset(config=config, kinds=["train", "val", "test"], datasets=["ESC50"], use_fusion=True)
+esc50_dataloader = DataLoader(esc50_dataset, batch_size=64, shuffle=False)
+class_to_idx, _ = ClapDataset.load_esc50_class_mapping()
+
+# Load pretrained model
+model = Clap.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, ckpt_version=ckpt_version, cfg_version=cfg_version).to(device)
+
+# Generate prompts
+prompt = "This is the sound of "
+prompts = [prompt + y for y in class_to_idx.keys()]
+
+# Compute text embedding for the prompts
+class_embeddings = model.get_text_embeddings(prompts)
+
+# Get ZS accuracy
+acc = eval_zero_shot_classification(model=model, eval_loader=esc50_dataloader, class_embeddings=class_embeddings)
+
+print(f'ESC50 Accuracy {acc}')
 ```
 
 ## Datasets
-I implemented a `ClapDataset` that should be used for training.
-For now, it only supports the [Clotho](https://doi.org/10.1109/ICASSP40776.2020.9052990) and [AudioCaps](https://doi.org/10.18653/v1/N19-1011) datasets.
-Each ClapDataset represents either train, validation or test dataset and can include either AudioCaps or Clotho or both.
+I implemented a `ClapDataset` that should be used for training and evaluation.
+For now, it only supports the [ClothoV2](https://doi.org/10.1109/ICASSP40776.2020.9052990), [AudioCaps](https://doi.org/10.18653/v1/N19-1011) and [ESC-50](https://doi.org/10.1145/2733373.2806390) datasets.
+Each ClapDataset can load either train, validation, test or any combination of these three dataset splits, and it can include either AudioCaps, ClothoV2 or ESC-50 or any combination of these three.
 If need be, the datasets including the metadata will be downloaded to a specific directory.
-The audio needs to be preprocessed first, thus setting `preprocess_audio=True` and specifing a config file is necessary when first initialising a `ClapDataset`.
-The user does should not rename/move these files, as there location is important for the `ClapDataset`.
+The user should not rename/move the configuration and checkpoint files, as there location is important for the `ClapDataset` and `Clap` respectively.
 
 Examples:
 
 ```python
-from clap import ClapDataset
+from clap.utils import load_clap_config
+from clap.datasets import ClapDataset
 
-config_path = "clap/configs/clap_cnn14_distilroberta-base_v1.yml"
-clotho_train_dataset = ClapDataset(datasets=["Clotho"], kind="train", download=True, config=config_path,
-                                   preprocess_audio=True)
-audiocaps_test_dataset = ClapDataset(datasets=["AudioCaps"], kind="test", download=True, config=config_path,
-                                     preprocess_audio=True)
-combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kind="val", download=True, config=config_path,
-                                   preprocess_audio=True)
+audio_encoder = "htsat-tiny"
+text_encoder = "gpt2"
+version = 1
+config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=version)
+clotho_train_dataset = ClapDataset(datasets=["Clotho"], kinds=["train"], download=True, config=config)
+audiocaps_test_dataset = ClapDataset(datasets=["AudioCaps"], kinds=["test"], download=True, config=config)
+combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kinds=["val"], download=True, config=config)
 ```
 
+## Results
+These performances were achieved by using this [configuration](clap/configs/clap_htsat-tiny_gpt2_v1.yml) and this [notebook](examples/training.ipynb).
+ClAP was briefly trained according to the aforementioned configuration on both AudioCaps and ClothoV2, employing feature fusion for longer audios and simple repeat padding for shorter audios.
+
+Note: In order to use the pretrained audio encoder, you first have to download an official model checkpoint yourself and then change the absolut path accordingly.
+
+
+### Retrieval performance
+
+#### AudioCaps:
+
+|                | Recall@1 | Recall@5 | Recall@10 | mAP@10 |
+|----------------|:--------:|:--------:|:---------:|:------:|
+| **Audio-Text** |  0.7211  |  0.9649  |  0.9880   | 0.8270 |
+| **Text-Audio** |  0.7360  |  0.9690  |  0.9909   | 0.8388 |
+
+#### ClothoV2:
+
+|                | Recall@1 | Recall@5 | Recall@10 | mAP@10 |
+|----------------|:--------:|:--------:|:---------:|:------:|
+| **Audio-Text** |  0.1562  |  0.6303  |  0.8283   | 0.3542 |
+| **Text-Audio** |  0.1402  |  0.6794  |  0.8545   | 0.3467 |
+
+
+### Zero-Shot Audio classification
+
+|        | Top-1 Accuracy |
+|--------|:--------------:|
+| ESC-50 |     0.7465     |
+
+
 ## References
-- B. Elizalde, S. Deshmukh, M. A. Ismail and H. Wang, "CLAP Learning Audio Concepts from Natural Language Supervision," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5, doi: [10.1109/ICASSP49357.2023.10095889](https://doi.org/10.1109/ICASSP49357.2023.10095889).
-- Y. Wu, K. Chen, T. Zhang, Y. Hui, T. Berg-Kirkpatrick and S. Dubnov, "Large-Scale Contrastive Language-Audio Pretraining with Feature Fusion and Keyword-to-Caption Augmentation," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5, doi: [10.1109/ICASSP49357.2023.10095969](https://doi.org/10.1109/ICASSP49357.2023.10095969).
-- K. Chen, X. Du, B. Zhu, Z. Ma, T. Berg-Kirkpatrick and S. Dubnov, "HTS-AT: A Hierarchical Token-Semantic Audio Transformer for Sound Classification and Detection," ICASSP 2022 - 2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Singapore, Singapore, 2022, pp. 646-650, doi: [10.1109/ICASSP43922.2022.9746312](https://doi.org/10.1109/ICASSP43922.2022.9746312).
-- Y. Dai, F. Gieseke, S. Oehmcke, Y. Wu and K. Barnard, "Attentional Feature Fusion," 2021 IEEE Winter Conference on Applications of Computer Vision (WACV), Waikoloa, HI, USA, 2021, pp. 3559-3568, doi: [10.1109/WACV48630.2021.00360](https://doi.org/10.1109/WACV48630.2021.00360).
+> B. Elizalde, S. Deshmukh, M. A. Ismail and H. Wang, "CLAP Learning Audio Concepts from Natural Language Supervision," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5
+>
+> Doi: [10.1109/ICASSP49357.2023.10095889](https://doi.org/10.1109/ICASSP49357.2023.10095889).
+
+> Y. Wu, K. Chen, T. Zhang, Y. Hui, T. Berg-Kirkpatrick and S. Dubnov, "Large-Scale Contrastive Language-Audio Pretraining with Feature Fusion and Keyword-to-Caption Augmentation," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5
+>
+> Doi: [10.1109/ICASSP49357.2023.10095969](https://doi.org/10.1109/ICASSP49357.2023.10095969).
+
+> K. Chen, X. Du, B. Zhu, Z. Ma, T. Berg-Kirkpatrick and S. Dubnov, "HTS-AT: A Hierarchical Token-Semantic Audio Transformer for Sound Classification and Detection," ICASSP 2022 - 2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Singapore, Singapore, 2022, pp. 646-650
+>
+> Doi: [10.1109/ICASSP43922.2022.9746312](https://doi.org/10.1109/ICASSP43922.2022.9746312).
+
+> Y. Dai, F. Gieseke, S. Oehmcke, Y. Wu and K. Barnard, "Attentional Feature Fusion," 2021 IEEE Winter Conference on Applications of Computer Vision (WACV), Waikoloa, HI, USA, 2021, pp. 3559-3568
+> 
+> Doi: [10.1109/WACV48630.2021.00360](https://doi.org/10.1109/WACV48630.2021.00360).

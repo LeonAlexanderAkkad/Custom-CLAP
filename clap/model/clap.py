@@ -1,17 +1,10 @@
-import os
-
-from glob import glob
-
-from pathlib import Path
-
 import numpy as np
 
 import torch
 from torch import nn
-import torch.nn.functional as F
 
 from .layers import TextEncoder, AudioEncoder
-from ..utils import load_config
+from ..utils import load_clap_config, load_clap_ckpt
 
 
 class Clap(nn.Module):
@@ -26,7 +19,7 @@ class Clap(nn.Module):
     logit_scale : nn.Parameter
         Trainable parameter for scaling the logits and used as temperature when calculating the similarity matrix.
     """
-    def __init__(self, config: dict | Path | str):
+    def __init__(self, config: dict):
         """Initializes the CLAP model.
 
         This constructor sets up the CLAP model by initializing the text encoder,
@@ -34,14 +27,11 @@ class Clap(nn.Module):
 
         Parameters
         ----------
-        config : dict, Path, or str
-            The configuration file containing all the hyperparameters. It can be
-            a dictionary, a Path object, or a string representing the path to the
-            configuration file.
+        config : dict
+            The configuration dictionary containing all the hyperparameters.
 
-        Examples
+        Example
         --------
-        **Example 1: Initializing with a dictionary**
 
         >>> config_dict = {
         ...     "text": {"param1": "value1", "param2": "value2"},
@@ -49,34 +39,8 @@ class Clap(nn.Module):
         ...     "projection": {"param1": "value1", "param2": "value2"}
         ... }
         >>> clap_model = Clap(config_dict)
-
-        **Example 2: Initializing with a Path object**
-
-        >>> config_path = Path("path/to/config.yml")
-        >>> clap_model = Clap(config_path)
-
-        **Example 4: Loading from a YAML configuration file**
-
-        If the configuration is stored in a YAML file, the `load_config` function
-        will handle loading it into a dictionary internally:
-
-        >>> clap_model = Clap("path/to/config.yml")
-
-        **Example 5: Handling errors**
-
-        Ensure the configuration file path is correct and the file is properly
-        formatted:
-
-        >>> try:
-        ...     clap_model = Clap("invalid/path/to/config.yml")
-        ... except FileNotFoundError:
-        ...     print("Config file not found.")
-        ... except ValueError as e:
-        ...     print(f"Config file is invalid: {e}")
         """
         super().__init__()
-
-        config = load_config(config)
 
         self.text_encoder = TextEncoder(config["text"], config["projection"])
 
@@ -84,11 +48,41 @@ class Clap(nn.Module):
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
-    def forward(self, text: torch.Tensor, audio: torch.Tensor):
-        text_embedding = self.text_encoder(text)
-        audio_embedding = self.audio_encoder(audio)
+    def forward(self, text: list[str], audio: dict[str, torch.Tensor]):
+        text_embeddings = self.text_encoder(text)
+        audio_embeddings = self.audio_encoder(audio)
 
-        return F.normalize(text_embedding, dim=-1), F.normalize(audio_embedding, dim=-1), self.logit_scale.exp()
+        return text_embeddings, audio_embeddings, self.logit_scale.exp()
+
+    def freeze_text_encoder(self):
+        """Freezes the text encoder."""
+        for param in self.text_encoder.parameters():
+            param.requires_grad = False
+
+    def unfreeze_text_encoder(self):
+        """Unfreezes the text encoder."""
+        for param in self.text_encoder.parameters():
+            param.requires_grad = True
+
+    def freeze_audio_encoder(self):
+        """Freezes the audio encoder."""
+        for param in self.audio_encoder.parameters():
+            param.requires_grad = False
+
+    def unfreeze_audio_encoder(self):
+        """Unfreezes the audio encoder."""
+        for param in self.audio_encoder.parameters():
+            param.requires_grad = True
+
+    def freeze_encoders(self):
+        """Freezes both text and audio encoders."""
+        self.freeze_text_encoder()
+        self.freeze_audio_encoder()
+
+    def unfreeze_encoders(self):
+        """Unfreezes both text and audio encoders."""
+        self.unfreeze_text_encoder()
+        self.unfreeze_audio_encoder()
 
     def compute_similarity(self, text_embedding: torch.Tensor, audio_embedding: torch.Tensor) -> torch.Tensor:
         """Computes the similarity matrix between a normalized text embedding and audio embedding."""
@@ -96,13 +90,23 @@ class Clap(nn.Module):
 
         return similarity.T
 
+    def get_text_embeddings(self, text: list[str]):
+        """Returns the normalized text embedding of the provided text."""
+        with torch.no_grad():
+            return self.text_encoder(text)
+
+    def get_audio_embeddings(self, audio: list[str]):
+        """Returns the normalized audio embedding of the provided audio."""
+        with torch.no_grad():
+            return self.audio_encoder(audio)
+
     @classmethod
-    def from_ckpt(cls, audio_encoder: str, text_encoder: str, version: str | int) -> "Clap":
+    def from_ckpt(cls, audio_encoder: str, text_encoder: str, ckpt_version: str | int, cfg_version: str | int) -> "Clap":
         """Create an instance of Clap from a checkpoint file (e.g. a ckpt file).
 
         This method searches for the appropriate configuration and checkpoint files
         based on the provided `audio_encoder`, `text_encoder`, and `version` parameters.
-        It initializes a `Clap` instance using these files.
+        It initializes a `Clap` instance using the found files.
 
         Parameters
         ----------
@@ -110,8 +114,10 @@ class Clap(nn.Module):
             The name of the audio encoder to use.
         text_encoder : str
             The name of the text encoder to use.
-        version : str or int
+        ckpt_version : str or int
             The version of the checkpoint to load.
+        cfg_version: str or int
+            The version of the config to use.
 
         Returns
         -------
@@ -120,51 +126,78 @@ class Clap(nn.Module):
 
         Raises
         ------
-        ValueError
+        FileNotFoundError
             If no matching config file or checkpoint file is found.
 
         Examples
         --------
-        >>> clap_instance = Clap.from_ckpt("cnn14", "distilroberta-base", 1)
+        Create a Clap instance from a specific checkpoint version:
 
-        This will not only search for a configuration file that includes `cnn14` and `distilroberta-base`
-        in its name and ends with `v1.yml`, but also a checkpoint file that
-        includes `cnn14` and `distilroberta-base` in its name and ends with `v1.ckpt`.
+        >>> clap_instance = Clap.from_ckpt("cnn14", "distilroberta-base", 1, 1)
 
-        If no matching files are found, a `ValueError` will be raised:
-        >>> Clap.from_ckpt("nonexistent_audio_encoder", "nonexistent_text_encoder", 999)
+        This will search for a configuration file named `clap_cnn14_distilroberta-base_v1.yml`
+        and a checkpoint file named `clap_cnn14_distilroberta-base_v1.ckpt`.
+        If the files are found, it will initialize the Clap instance using these files.
+
+        If no matching files are found, a `FileNotFoundError` will be raised:
+
+        >>> Clap.from_ckpt("nonexistent_audio_encoder", "nonexistent_text_encoder", 999, 999)
         Traceback (most recent call last):
             ...
-        ValueError: No config file found. Available configs: ['clap/configs/clap_cnn14_distilroberta-base.yml', ...]
+        FileNotFoundError: Config file not found for nonexistent_audio_encoder and nonexistent_text_encoder and v999.
+                           Available configs: [clap_cnn14_distilroberta-base_v1.yml, ...]
+
+        Notes
+        -----
+        - The method `load_clap_ckpt` is responsible for finding and loading the checkpoint file.
+        - The method `load_clap_config` is used to find and load the configuration file.
         """
-        # Get config path
-        config = None
-        config_paths = glob(os.path.join("clap", "configs", "*.yml"))
-        for config_path in config_paths:
-            if audio_encoder in config_path and text_encoder in config_path and "v" + str(version) in config_path:
-                config = config_path
+        clap = cls.from_encoders(audio_encoder, text_encoder, cfg_version)
 
-        if config is None:
-            raise ValueError(f"No config file found. Available configs: {config_paths}")
-
-        # Get checkpoint path
-        ckpt = None
-        ckpt_paths = glob(os.path.join("clap", "checkpoints", "*.ckpt"))
-        for ckpt_path in ckpt_paths:
-            if audio_encoder in ckpt_path and text_encoder in ckpt_path and "v" + str(version) in ckpt_path:
-                ckpt = ckpt_path
-
-        if ckpt is None:
-            raise ValueError(f"No config file found. Available configs: {ckpt_paths}")
-
-        clap = cls(config)
-        cls.__load_ckpt(clap, ckpt)
+        ckpt = load_clap_ckpt(audio_encoder, text_encoder, ckpt_version)
+        clap.load_state_dict(ckpt["model"])
 
         return clap
 
-    @staticmethod
-    def __load_ckpt(model: nn.Module, ckpt: Path | str | dict):
-        if not isinstance(ckpt, dict):
-            ckpt = torch.load(ckpt)
+    @classmethod
+    def from_encoders(cls, audio_encoder: str, text_encoder: str, cfg_version: str | int) -> "Clap":
+        """Create an instance of Clap from audio and text encoders as well as a config version.
 
-        model.load_state_dict(ckpt["model"])
+        This method initializes a Clap instance based on the provided
+        `audio_encoder` and `text_encoder` by loading the corresponding configuration file.
+
+        Parameters
+        ----------
+        audio_encoder : str
+            The name of the audio encoder to use.
+        text_encoder : str
+            The name of the text encoder to use.
+        cfg_version: str or int
+            The version of the config to load.
+
+        Returns
+        -------
+        Clap
+            An instance of the Clap class initialized with the encoders.
+
+        Raises
+        ------
+        FileNotFoundError
+            If no matching config file is found.
+
+        Examples
+        --------
+        Create a Clap instance from specific audio and text encoders:
+
+        >>> clap_instance = Clap.from_encoders("cnn14", "distilroberta-base", 1)
+
+        This will search for a configuration file named `clap_cnn14_distilroberta-base_v1.yml`
+        and initialize the Clap instance using the configuration from this file.
+
+        Notes
+        -----
+        - The method `load_clap_config` is responsible for finding and loading the configuration file.
+        """
+
+        config = load_clap_config(audio_encoder, text_encoder, cfg_version)
+        return cls(config)

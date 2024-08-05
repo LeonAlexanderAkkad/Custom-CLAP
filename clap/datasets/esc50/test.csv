@@ -1,0 +1,251 @@
+filename,fold,target,category,esc10,src_file,take
+5-201170-A-46.wav,5,46,church bells,False,201170,A
+5-201172-A-46.wav,5,46,church bells,False,201172,A
+5-201194-A-38.wav,5,38,clock tick,True,201194,A
+5-201274-A-21.wav,5,21,sneezing,True,201274,A
+5-201664-A-18.wav,5,18,toilet flush,False,201664,A
+5-202020-A-18.wav,5,18,toilet flush,False,202020,A
+5-202220-A-21.wav,5,21,sneezing,True,202220,A
+5-202540-A-18.wav,5,18,toilet flush,False,202540,A
+5-202795-A-3.wav,5,3,cow,False,202795,A
+5-202898-A-10.wav,5,10,rain,True,202898,A
+5-203128-A-0.wav,5,0,dog,True,203128,A
+5-203128-B-0.wav,5,0,dog,True,203128,B
+5-203739-A-10.wav,5,10,rain,True,203739,A
+5-204114-A-29.wav,5,29,drinking sipping,False,204114,A
+5-204352-A-13.wav,5,13,crickets,False,204352,A
+5-204352-B-13.wav,5,13,crickets,False,204352,B
+5-204604-A-24.wav,5,24,coughing,False,204604,A
+5-204741-A-46.wav,5,46,church bells,False,204741,A
+5-205090-A-32.wav,5,32,keyboard typing,False,205090,A
+5-205589-A-17.wav,5,17,pouring water,False,205589,A
+5-205589-B-17.wav,5,17,pouring water,False,205589,B
+5-205898-A-40.wav,5,40,helicopter,True,205898,A
+5-207681-A-24.wav,5,24,coughing,False,207681,A
+5-207781-A-17.wav,5,17,pouring water,False,207781,A
+5-207811-A-35.wav,5,35,washing machine,False,207811,A
+5-207811-B-35.wav,5,35,washing machine,False,207811,B
+5-207836-A-29.wav,5,29,drinking sipping,False,207836,A
+5-207836-B-29.wav,5,29,drinking sipping,False,207836,B
+5-207836-C-29.wav,5,29,drinking sipping,False,207836,C
+5-207836-D-29.wav,5,29,drinking sipping,False,207836,D
+5-208030-A-0.wav,5,0,dog,True,208030,A
+5-208624-A-38.wav,5,38,clock tick,True,208624,A
+5-208761-A-24.wav,5,24,coughing,False,208761,A
+5-208810-A-11.wav,5,11,sea waves,True,208810,A
+5-208810-B-11.wav,5,11,sea waves,True,208810,B
+5-209698-A-38.wav,5,38,clock tick,True,209698,A
+5-209719-A-24.wav,5,24,coughing,False,209719,A
+5-209833-A-38.wav,5,38,clock tick,True,209833,A
+5-209989-A-22.wav,5,22,clapping,False,209989,A
+5-209992-A-44.wav,5,44,engine,False,209992,A
+5-209992-B-44.wav,5,44,engine,False,209992,B
+5-210540-A-13.wav,5,13,crickets,False,210540,A
+5-210571-A-38.wav,5,38,clock tick,True,210571,A
+5-210612-A-37.wav,5,37,clock alarm,False,210612,A
+5-211197-A-24.wav,5,24,coughing,False,211197,A
+5-211408-A-37.wav,5,37,clock alarm,False,211408,A
+5-212050-A-27.wav,5,27,brushing teeth,False,212050,A
+5-212054-A-36.wav,5,36,vacuum cleaner,False,212054,A
+5-212059-A-36.wav,5,36,vacuum cleaner,False,212059,A
+5-212181-A-38.wav,5,38,clock tick,True,212181,A
+5-212454-A-0.wav,5,0,dog,True,212454,A
+5-212730-A-17.wav,5,17,pouring water,False,212730,A
+5-212734-A-17.wav,5,17,pouring water,False,212734,A
+5-212736-A-17.wav,5,17,pouring water,False,212736,A
+5-213077-A-11.wav,5,11,sea waves,True,213077,A
+5-213293-A-23.wav,5,23,breathing,False,213293,A
+5-213802-A-12.wav,5,12,crackling fire,True,213802,A
+5-213836-A-9.wav,5,9,crow,False,213836,A
+5-213836-B-9.wav,5,9,crow,False,213836,B
+5-213836-C-9.wav,5,9,crow,False,213836,C
+5-213836-D-9.wav,5,9,crow,False,213836,D
+5-213855-A-0.wav,5,0,dog,True,213855,A
+5-214362-A-17.wav,5,17,pouring water,False,214362,A
+5-214759-A-5.wav,5,5,cat,False,214759,A
+5-214759-B-5.wav,5,5,cat,False,214759,B
+5-214869-A-9.wav,5,9,crow,False,214869,A
+5-215005-A-32.wav,5,32,keyboard typing,False,215005,A
+5-215172-A-13.wav,5,13,crickets,False,215172,A
+5-215179-A-13.wav,5,13,crickets,False,215179,A
+5-215445-A-47.wav,5,47,airplane,False,215445,A
+5-215447-A-47.wav,5,47,airplane,False,215447,A
+5-215449-A-47.wav,5,47,airplane,False,215449,A
+5-215634-A-17.wav,5,17,pouring water,False,215634,A
+5-215658-A-12.wav,5,12,crackling fire,True,215658,A
+5-215658-B-12.wav,5,12,crackling fire,True,215658,B
+5-216131-A-32.wav,5,32,keyboard typing,False,216131,A
+5-216213-A-13.wav,5,13,crickets,False,216213,A
+5-216214-A-13.wav,5,13,crickets,False,216214,A
+5-216216-A-13.wav,5,13,crickets,False,216216,A
+5-216368-A-28.wav,5,28,snoring,False,216368,A
+5-216370-A-41.wav,5,41,chainsaw,True,216370,A
+5-216370-B-41.wav,5,41,chainsaw,True,216370,B
+5-217158-A-0.wav,5,0,dog,True,217158,A
+5-217186-A-16.wav,5,16,wind,False,217186,A
+5-217186-B-16.wav,5,16,wind,False,217186,B
+5-217186-C-16.wav,5,16,wind,False,217186,C
+5-218196-A-27.wav,5,27,brushing teeth,False,218196,A
+5-218196-B-27.wav,5,27,brushing teeth,False,218196,B
+5-218494-A-22.wav,5,22,clapping,False,218494,A
+5-218980-A-30.wav,5,30,door wood knock,False,218980,A
+5-218981-A-30.wav,5,30,door wood knock,False,218981,A
+5-219044-A-46.wav,5,46,church bells,False,219044,A
+5-219242-A-37.wav,5,37,clock alarm,False,219242,A
+5-219242-B-37.wav,5,37,clock alarm,False,219242,B
+5-219318-A-31.wav,5,31,mouse click,False,219318,A
+5-219342-A-38.wav,5,38,clock tick,True,219342,A
+5-219379-A-11.wav,5,11,sea waves,True,219379,A
+5-219379-B-11.wav,5,11,sea waves,True,219379,B
+5-219379-C-11.wav,5,11,sea waves,True,219379,C
+5-220026-A-21.wav,5,21,sneezing,True,220026,A
+5-220027-A-21.wav,5,21,sneezing,True,220027,A
+5-220939-A-27.wav,5,27,brushing teeth,False,220939,A
+5-220955-A-40.wav,5,40,helicopter,True,220955,A
+5-221518-A-21.wav,5,21,sneezing,True,221518,A
+5-221528-A-39.wav,5,39,glass breaking,False,221528,A
+5-221529-A-39.wav,5,39,glass breaking,False,221529,A
+5-221567-A-22.wav,5,22,clapping,False,221567,A
+5-221568-A-22.wav,5,22,clapping,False,221568,A
+5-221593-A-21.wav,5,21,sneezing,True,221593,A
+5-221878-A-34.wav,5,34,can opening,False,221878,A
+5-221950-A-22.wav,5,22,clapping,False,221950,A
+5-222041-A-9.wav,5,9,crow,False,222041,A
+5-222524-A-41.wav,5,41,chainsaw,True,222524,A
+5-222894-A-32.wav,5,32,keyboard typing,False,222894,A
+5-223099-A-32.wav,5,32,keyboard typing,False,223099,A
+5-223099-B-32.wav,5,32,keyboard typing,False,223099,B
+5-223103-A-31.wav,5,31,mouse click,False,223103,A
+5-223176-A-37.wav,5,37,clock alarm,False,223176,A
+5-223317-A-31.wav,5,31,mouse click,False,223317,A
+5-223810-A-35.wav,5,35,washing machine,False,223810,A
+5-231551-A-36.wav,5,36,vacuum cleaner,False,231551,A
+5-231762-A-0.wav,5,0,dog,True,231762,A
+5-232272-A-44.wav,5,44,engine,False,232272,A
+5-232802-A-31.wav,5,31,mouse click,False,232802,A
+5-232816-A-23.wav,5,23,breathing,False,232816,A
+5-233019-A-31.wav,5,31,mouse click,False,233019,A
+5-233160-A-1.wav,5,1,rooster,True,233160,A
+5-233260-A-23.wav,5,23,breathing,False,233260,A
+5-233312-A-28.wav,5,28,snoring,False,233312,A
+5-233605-A-39.wav,5,39,glass breaking,False,233605,A
+5-233607-A-39.wav,5,39,glass breaking,False,233607,A
+5-233645-A-37.wav,5,37,clock alarm,False,233645,A
+5-233787-A-7.wav,5,7,insects,False,233787,A
+5-234145-A-28.wav,5,28,snoring,False,234145,A
+5-234247-A-37.wav,5,37,clock alarm,False,234247,A
+5-234263-A-25.wav,5,25,footsteps,False,234263,A
+5-234335-A-23.wav,5,23,breathing,False,234335,A
+5-234855-A-25.wav,5,25,footsteps,False,234855,A
+5-234879-A-1.wav,5,1,rooster,True,234879,A
+5-234879-B-1.wav,5,1,rooster,True,234879,B
+5-234923-A-32.wav,5,32,keyboard typing,False,234923,A
+5-235507-A-44.wav,5,44,engine,False,235507,A
+5-235593-A-23.wav,5,23,breathing,False,235593,A
+5-235644-A-30.wav,5,30,door wood knock,False,235644,A
+5-235671-A-38.wav,5,38,clock tick,True,235671,A
+5-235874-A-28.wav,5,28,snoring,False,235874,A
+5-235893-A-28.wav,5,28,snoring,False,235893,A
+5-235956-A-47.wav,5,47,airplane,False,235956,A
+5-236288-A-28.wav,5,28,snoring,False,236288,A
+5-236299-A-34.wav,5,34,can opening,False,236299,A
+5-237315-A-31.wav,5,31,mouse click,False,237315,A
+5-237499-A-4.wav,5,4,frog,False,237499,A
+5-237795-A-34.wav,5,34,can opening,False,237795,A
+5-238021-A-35.wav,5,35,washing machine,False,238021,A
+5-238492-A-23.wav,5,23,breathing,False,238492,A
+5-238926-A-31.wav,5,31,mouse click,False,238926,A
+5-238938-A-27.wav,5,27,brushing teeth,False,238938,A
+5-240671-A-44.wav,5,44,engine,False,240671,A
+5-241846-A-15.wav,5,15,water drops,False,241846,A
+5-242490-A-14.wav,5,14,chirping birds,False,242490,A
+5-242491-A-14.wav,5,14,chirping birds,False,242491,A
+5-242492-A-3.wav,5,3,cow,False,242492,A
+5-242711-A-9.wav,5,9,crow,False,242711,A
+5-242932-A-26.wav,5,26,laughing,False,242932,A
+5-242932-B-26.wav,5,26,laughing,False,242932,B
+5-243025-A-25.wav,5,25,footsteps,False,243025,A
+5-243036-A-29.wav,5,29,drinking sipping,False,243036,A
+5-243448-A-14.wav,5,14,chirping birds,False,243448,A
+5-243449-A-14.wav,5,14,chirping birds,False,243449,A
+5-243450-A-14.wav,5,14,chirping birds,False,243450,A
+5-243459-A-14.wav,5,14,chirping birds,False,243459,A
+5-243459-B-14.wav,5,14,chirping birds,False,243459,B
+5-243635-A-29.wav,5,29,drinking sipping,False,243635,A
+5-243773-A-44.wav,5,44,engine,False,243773,A
+5-243773-B-44.wav,5,44,engine,False,243773,B
+5-243783-A-44.wav,5,44,engine,False,243783,A
+5-244178-A-32.wav,5,32,keyboard typing,False,244178,A
+5-244310-A-25.wav,5,25,footsteps,False,244310,A
+5-244315-A-6.wav,5,6,hen,False,244315,A
+5-244315-B-6.wav,5,6,hen,False,244315,B
+5-244315-C-6.wav,5,6,hen,False,244315,C
+5-244327-A-34.wav,5,34,can opening,False,244327,A
+5-244459-A-28.wav,5,28,snoring,False,244459,A
+5-244526-A-26.wav,5,26,laughing,False,244526,A
+5-244651-A-31.wav,5,31,mouse click,False,244651,A
+5-244933-A-34.wav,5,34,can opening,False,244933,A
+5-245040-A-35.wav,5,35,washing machine,False,245040,A
+5-248341-A-6.wav,5,6,hen,False,248341,A
+5-248341-B-6.wav,5,6,hen,False,248341,B
+5-248341-C-6.wav,5,6,hen,False,248341,C
+5-249748-A-28.wav,5,28,snoring,False,249748,A
+5-249937-A-22.wav,5,22,clapping,False,249937,A
+5-250026-A-30.wav,5,30,door wood knock,False,250026,A
+5-250026-B-30.wav,5,30,door wood knock,False,250026,B
+5-250258-A-49.wav,5,49,hand saw,False,250258,A
+5-250629-A-37.wav,5,37,clock alarm,False,250629,A
+5-250753-A-34.wav,5,34,can opening,False,250753,A
+5-251426-A-30.wav,5,30,door wood knock,False,251426,A
+5-251426-B-30.wav,5,30,door wood knock,False,251426,B
+5-251489-A-24.wav,5,24,coughing,False,251489,A
+5-251957-A-47.wav,5,47,airplane,False,251957,A
+5-251962-A-47.wav,5,47,airplane,False,251962,A
+5-251963-A-47.wav,5,47,airplane,False,251963,A
+5-251971-A-47.wav,5,47,airplane,False,251971,A
+5-252248-A-34.wav,5,34,can opening,False,252248,A
+5-253085-A-3.wav,5,3,cow,False,253085,A
+5-253085-B-3.wav,5,3,cow,False,253085,B
+5-253094-A-49.wav,5,49,hand saw,False,253094,A
+5-253094-B-49.wav,5,49,hand saw,False,253094,B
+5-253094-C-49.wav,5,49,hand saw,False,253094,C
+5-253094-D-49.wav,5,49,hand saw,False,253094,D
+5-253101-A-49.wav,5,49,hand saw,False,253101,A
+5-253101-B-49.wav,5,49,hand saw,False,253101,B
+5-253101-C-49.wav,5,49,hand saw,False,253101,C
+5-253534-A-26.wav,5,26,laughing,False,253534,A
+5-254160-A-22.wav,5,22,clapping,False,254160,A
+5-254832-A-15.wav,5,15,water drops,False,254832,A
+5-254832-B-15.wav,5,15,water drops,False,254832,B
+5-256452-A-5.wav,5,5,cat,False,256452,A
+5-256512-A-30.wav,5,30,door wood knock,False,256512,A
+5-257349-A-15.wav,5,15,water drops,False,257349,A
+5-257642-A-39.wav,5,39,glass breaking,False,257642,A
+5-257839-A-14.wav,5,14,chirping birds,False,257839,A
+5-259169-A-5.wav,5,5,cat,False,259169,A
+5-259180-A-15.wav,5,15,water drops,False,259180,A
+5-259514-A-26.wav,5,26,laughing,False,259514,A
+5-259640-A-29.wav,5,29,drinking sipping,False,259640,A
+5-260011-A-34.wav,5,34,can opening,False,260011,A
+5-260164-A-23.wav,5,23,breathing,False,260164,A
+5-260432-A-39.wav,5,39,glass breaking,False,260432,A
+5-260433-A-39.wav,5,39,glass breaking,False,260433,A
+5-260434-A-39.wav,5,39,glass breaking,False,260434,A
+5-260875-A-35.wav,5,35,washing machine,False,260875,A
+5-261325-A-9.wav,5,9,crow,False,261325,A
+5-261433-A-15.wav,5,15,water drops,False,261433,A
+5-261439-A-15.wav,5,15,water drops,False,261439,A
+5-261464-A-23.wav,5,23,breathing,False,261464,A
+5-262641-A-15.wav,5,15,water drops,False,262641,A
+5-262957-A-22.wav,5,22,clapping,False,262957,A
+5-263490-A-25.wav,5,25,footsteps,False,263490,A
+5-263491-A-25.wav,5,25,footsteps,False,263491,A
+5-263501-A-25.wav,5,25,footsteps,False,263501,A
+5-263775-A-26.wav,5,26,laughing,False,263775,A
+5-263775-B-26.wav,5,26,laughing,False,263775,B
+5-263831-A-6.wav,5,6,hen,False,263831,A
+5-263831-B-6.wav,5,6,hen,False,263831,B
+5-263902-A-36.wav,5,36,vacuum cleaner,False,263902,A
+5-51149-A-25.wav,5,25,footsteps,False,51149,A
+5-61635-A-8.wav,5,8,sheep,False,61635,A
+5-9032-A-0.wav,5,0,dog,True,9032,A

@@ -1,20 +1,23 @@
 from pathlib import Path
 
+import json
+
 from typing import Literal, Union
 
 import torch
+from torch.utils.data import Dataset
 
 from .audio_processor import AudioProcessor
-from .audio_dataset import AudioDataset
 from .audiocaps import AudioCaps
 from .clotho import Clotho
-from ..utils import load_config, get_target_device
+from .esc50 import ESC50
+from ..utils import get_target_device
 
 
-AVAILABLE_DATASETS = {"AudioCaps": AudioCaps, "Clotho": Clotho}
+AVAILABLE_DATASETS = {"AudioCaps": AudioCaps, "Clotho": Clotho, "ESC50": ESC50}
 
 
-class ClapDataset(AudioDataset):
+class ClapDataset(Dataset):
     """A dataset for handling audio data from multiple sources for either training, validation or testing.
 
     Attributes
@@ -23,8 +26,8 @@ class ClapDataset(AudioDataset):
         Configuration for the dataset.
     datasets : list[Union[Literal["AudioCaps"], Literal["Clotho"]]]
         List of datasets to be used.
-    kind : str
-        Type of dataset split.
+    kinds : list[Union[Literal["train"], Literal["val"], Literal["test"]]]
+        Type of dataset splits.
     use_fusion : bool
         Flag indicating whether to use fusion audio pre-processing.
     download : bool
@@ -36,9 +39,9 @@ class ClapDataset(AudioDataset):
     """
     def __init__(
             self,
-            config: dict | Path | str,
-            datasets: list[Union[Literal["AudioCaps"], Literal["Clotho"]]] = ("AudioCaps", "Clotho"),
-            kind: Literal["train", "val", "test"] = "train",
+            config: dict,
+            datasets: list[Union[Literal["AudioCaps"], Literal["Clotho"], Literal["ESC50"]]] | None = None,
+            kinds: list[Union[Literal["train"], Literal["val"], Literal["test"]]] | None = None,
             use_fusion: bool = True,
             download: bool = False
     ):
@@ -50,7 +53,7 @@ class ClapDataset(AudioDataset):
             Configuration for loading audio data and processing.
         datasets : list[Union[Literal["AudioCaps"], Literal["Clotho"]]], optional
             List of datasets to be used, by default ["AudioCaps", "Clotho"].
-        kind : Literal["train", "val", "test"], optional
+        kinds : Literal["train", "val", "test"], optional
             Type of dataset split, by default "train".
         use_fusion : bool, optional
             Whether to use fusion processing for audio, by default True.
@@ -58,17 +61,16 @@ class ClapDataset(AudioDataset):
             Whether to download the datasets if not available, by default False.
         """
         self.config = config
-        self.datasets = datasets
-        self.kind = kind
+        self.datasets = ["AudioCaps", "Clotho"] if datasets is None else datasets
+        self.kinds = ["train"] if kinds is None else kinds
         self.use_fusion = use_fusion
         self.download = download
         self.device = get_target_device()
-        audio_cfg = load_config(self.config)["audio"]
-        self.audio_processor = AudioProcessor(audio_cfg, self.device)
+        self.audio_cfg = config["audio"]
+        self.audio_processor = AudioProcessor(self.audio_cfg, self.device)
+        self.audio, self.text = self.get_samples()
 
-        super().__init__(self.kind, self.download)
-
-    def __getitem__(self, index: int) -> tuple[str, str, dict[str, torch.Tensor]]:
+    def __getitem__(self, index: int) -> tuple[str, str | int, dict[str, torch.Tensor]]:
         """Retrieves a sample from the dataset given an index.
 
         Parameters
@@ -78,22 +80,25 @@ class ClapDataset(AudioDataset):
 
         Returns
         -------
-        tuple[str, str, dict[str, torch.Tensor]]
-            A tuple containing the audio path, caption, and a dictionary with processed audio and
+        tuple[str, str | int, dict[str, torch.Tensor]]
+            A tuple containing the audio path, caption / class, and a dictionary with processed audio and
             a flag indicating if the audio is longer.
         """
-        sample = dict()
+        audio_sample = dict()
 
         # Process the audio on demand
-        audio_path = self.data[index]
+        audio_path = self.audio[index]
         audio_processed, is_longer = self.audio_processor.process_audio(audio_path, use_fusion=self.use_fusion)
 
-        caption = self.captions[index]
+        text = self.text[index]
 
-        sample["audio"] = audio_processed
-        sample["is_longer"] = is_longer
+        audio_sample["audio"] = audio_processed
+        audio_sample["is_longer"] = is_longer
 
-        return audio_path, caption, sample
+        return audio_path, text, audio_sample
+
+    def __len__(self):
+        return len(self.text)
 
     def get_samples(self) -> tuple[list[str], list[str]]:
         """Retrieves all samples from the dataset.
@@ -115,10 +120,11 @@ class ClapDataset(AudioDataset):
         captions = []
 
         for dataset_name in self.datasets:
-            audio_dataset = AVAILABLE_DATASETS[dataset_name](self.kind, self.download)
+            for kind in self.kinds:
+                audio_dataset = AVAILABLE_DATASETS[dataset_name](kind, self.download)
 
-            data.extend(audio_dataset.data)
-            captions.extend(audio_dataset.captions)
+                data.extend(audio_dataset.audio)
+                captions.extend(audio_dataset.text)
 
         return data, captions
 
@@ -136,3 +142,11 @@ class ClapDataset(AudioDataset):
                 return False
 
         return True
+
+    @staticmethod
+    def load_esc50_class_mapping() -> tuple[dict[str, int], dict[str, str]]:
+        """Loads the ESC50 class mapping (i.e. class to idx and idx to class mappings)."""
+        class_to_idx = json.load(open(Path(__file__).parent / "esc50" / "class_to_idx.json", "r"))
+        idx_to_class = json.load(open(Path(__file__).parent / "esc50" / "idx_to_class.json", "r"))
+
+        return class_to_idx, idx_to_class

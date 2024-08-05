@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
@@ -44,7 +45,7 @@ class TextEncoder(nn.Module):
         # Projects the embedding into the same space as the audio embedding.
         projected = self.projection(output)
 
-        return projected
+        return F.normalize(projected, dim=-1)
 
     def load_text_encoder(self) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
         """Loads respective pretrained text encoder model from Huggingface."""

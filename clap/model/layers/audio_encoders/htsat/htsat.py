@@ -18,7 +18,6 @@ from torch import Tensor
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 
-from torchlibrosa.stft import Spectrogram, LogmelFilterBank
 from torchlibrosa.augmentation import SpecAugmentation
 
 from itertools import repeat
@@ -186,6 +185,8 @@ class PatchEmbed(nn.Module):
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
         if self.use_fusion:
+            self.mel_conv2d = nn.Conv2d(in_chans, embed_dim, kernel_size=(patch_size[0], patch_size[1] * 3),
+                                        stride=(patch_stride[0], patch_stride[1] * 3), padding=padding)
             self.fusion_model = iAFF(channels=embed_dim, type="2D")
 
     def forward(self, x, longer_list_idx):
@@ -623,7 +624,7 @@ class HTSAT_Swin_Transformer(nn.Module):
                  norm_layer=nn.LayerNorm,
                  ape=False, patch_norm=True,
                  use_checkpoint=False, norm_before_mlp='ln', config=None):
-        super(HTSAT_Swin_Transformer, self).__init__()
+        super().__init__()
 
         self.config = config
         self.spec_size = 256

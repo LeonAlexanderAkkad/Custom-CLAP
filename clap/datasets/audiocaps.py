@@ -1,8 +1,8 @@
 import os
 
-import subprocess
+from pathlib import Path
 
-import requests
+import subprocess
 
 import torchaudio
 
@@ -16,16 +16,19 @@ from glob import glob
 
 
 BASE_URL = "https://raw.githubusercontent.com/cdjkim/audiocaps/master/dataset/"
-DATASET_DIR_BASE = os.path.join("clap", "datasets", "audiocaps")
+DATASET_DIR_BASE = Path(__file__).parent / "audiocaps"
 
 
 class AudioCaps(AudioDataset):
     def get_samples(self):
         metadata_path = os.path.join(DATASET_DIR_BASE, f"{self.kind}.csv")
         audiodata_dir = os.path.join(DATASET_DIR_BASE, f"{self.kind}_audio")
+
         # Download metadata and audios if necessary
         if self.download:
-            self.__download_dataset(metadata_path, audiodata_dir)
+            self.__download_dataset(DATASET_DIR_BASE / "train.csv", DATASET_DIR_BASE / "train_audio")
+            self.__download_dataset(DATASET_DIR_BASE / "val.csv", DATASET_DIR_BASE / "val_audio")
+            self.__download_dataset(DATASET_DIR_BASE / "test.csv", DATASET_DIR_BASE / "test_audio")
 
         metadata_df = pd.read_csv(metadata_path)
 
@@ -35,7 +38,7 @@ class AudioCaps(AudioDataset):
 
         return audio_paths, captions
 
-    def __download_dataset(self, metadata_path: str, audiodata_dir: str):
+    def __download_dataset(self, metadata_path: str | Path, audiodata_dir: str | Path):
         # Download metadata and create directory if necessary
         os.makedirs(DATASET_DIR_BASE, exist_ok=True)
         self.__download_metadata(metadata_path)
@@ -85,13 +88,8 @@ class AudioCaps(AudioDataset):
 
     def __download_metadata(self, metadata_path: str):
         if not os.path.exists(metadata_path):
-            response = requests.get(BASE_URL + self.kind + ".csv", stream=True)
-            block_size = 1024
-
-            with open(metadata_path, 'wb') as file:
-                for data in response.iter_content(block_size):
-                    file.write(data)
-
+            filename = self.kind + ".csv"
+            self.download_file(BASE_URL + filename, metadata_path, f"Downloading audio metadata")
             print(f"Downloaded {self.kind} metadata to {metadata_path}")
 
     @staticmethod

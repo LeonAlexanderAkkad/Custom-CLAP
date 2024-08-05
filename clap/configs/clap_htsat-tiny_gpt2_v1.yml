@@ -7,12 +7,12 @@ text:
 # AUDIO CONFIG
 audio:
     name: 'htsat-tiny'
-    pretrained_path: 'clap/model/layers/audio_encoders/htsat/HTSAT_AudioSet_Saved_1.ckpt'
-    sampling_rate: 32000
+    pretrained_abs_path: 'C:\Users\leon\Documents\ML_Projects\Custom-CLAP\clap\model\layers\audio_encoders\pretrained_audio_encoders\HTSAT_AudioSet_Saved_6.ckpt'
+    sampling_rate: 48000
     duration: 10
     use_fusion: True
     window_size: 1024
-    hop_size: 320
+    hop_size: 480
     mel_bins: 64
     f_min: 50
     f_max: 14000
@@ -25,9 +25,9 @@ audio:
 projection:
     hidden_size: 1024
     out_size: 1024
-    # temperature: 0.003 IDK what to do with it yet.
 
 # TRAINING AND EVALUATION CONFIG
-learning_rate: 0.0001
-batch_size: 64
-epochs: 5
+training:
+    learning_rate: 0.0001
+    batch_size: 64
+    epochs: 5

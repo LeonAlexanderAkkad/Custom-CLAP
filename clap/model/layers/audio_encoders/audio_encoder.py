@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 from ..projection import Projection
 
@@ -30,13 +31,13 @@ class AudioEncoder(nn.Module):
             dropout=0.5
         )
 
-    def forward(self, audio: torch.Tensor):
+    def forward(self, audio: dict[str, torch.Tensor]):
         # Returns a dictionary with the probabilities of each class being present in the audio and the embedding.
         output = self.base(audio)
         # Projects the embedding into the same space as the text embedding.
         projected = self.projection(output["embedding"])
 
-        return projected
+        return F.normalize(projected, dim=-1)
 
     def load_audio_encoder(self) -> nn.Module:
         """Loads respective audio encoder model"""
@@ -45,19 +46,20 @@ class AudioEncoder(nn.Module):
                 f"Text encoder '{self.name}' not implemented.\nAvailable encoders: {list(AUDIO_ENCODERS.keys())}"
             )
 
-        pretrained_path = self.audio_cfg["pretrained_path"]
+        pretrained_path = self.audio_cfg["pretrained_abs_path"]
 
         encoder = AUDIO_ENCODERS[self.name](config=self.audio_cfg)
 
         if pretrained_path:
             ckpt = torch.load(pretrained_path)
-            # pop_keys = list(ckpt["model"].keys())
-            # for key in pop_keys:
-            #     if key.startswith("spectrogram_extractor.") or key.startswith("logmel_extractor."):
-            #         ckpt["model"].pop(key)
 
             if ckpt.get("model") is not None:
                 state_dict = ckpt["model"]
+            elif ckpt.get("state_dict") is not None:
+                state_dict = ckpt["state_dict"]
+                for key in list(state_dict.keys()):
+                    v = state_dict.pop(key)
+                    state_dict[key[10:]] = v
             else:
                 state_dict = ckpt
 

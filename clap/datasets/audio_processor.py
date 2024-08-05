@@ -6,13 +6,13 @@ import numpy as np
 
 import torch
 import torchvision
-import torchaudio
 import torchaudio.transforms as T
 
 from ..utils import load_audio
 
 
 class AudioProcessor:
+    """Class for preprocessing audio data so that it can be fed into CLAP"""
     def __init__(self, audio_cfg: dict, device: torch.device = torch.device('cpu')):
         self.audio_cfg = audio_cfg
         self.device = device
@@ -34,7 +34,7 @@ class AudioProcessor:
 
         self.log_mel_extractor = T.AmplitudeToDB(top_db=None).to(self.device)
 
-    def process_audio(self, audio_path: Path | str, use_fusion) -> tuple[torch.Tensor, torch.Tensor]:
+    def process_audio(self, audio_path: Path | str, use_fusion: bool) -> tuple[torch.Tensor, torch.Tensor]:
         """Method for loading the given sample such that it can be used for training."""
         # Get the audio and reshape it into mono.
         audio, sample_rate = load_audio(audio_path, self.sampling_rate)

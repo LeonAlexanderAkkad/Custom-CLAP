@@ -1,5 +1,7 @@
 import os
 
+from pathlib import Path
+
 import shutil
 
 import py7zr
@@ -16,25 +18,19 @@ from .audio_dataset import AudioDataset
 
 
 BASE_URL = "https://zenodo.org/record/4783391/files/"
-DATASET_DIR_BASE = os.path.join("clap", "datasets", "clotho")
+DATASET_DIR_BASE = Path(__file__).parent / "clotho"
 
 
 class Clotho(AudioDataset):
     def get_samples(self):
         metadata_path = os.path.join(DATASET_DIR_BASE, f"{self.kind}.csv")
         audiodata_dir = os.path.join(DATASET_DIR_BASE, f"{self.kind}_audio")
+
         # Download metadata and audios if necessary
         if self.download:
-            # Download metadata, create directory if necessary and split the caption to create new samples
-            os.makedirs(DATASET_DIR_BASE, exist_ok=True)
-            self.__download_metadata(metadata_path)
-            metadata_df = pd.read_csv(metadata_path)
-            metadata_df = self.split_captions(metadata_df)
-            metadata_df.to_csv(metadata_path, index=False)
-
-            # Download audios and create directories if necessary
-            os.makedirs(audiodata_dir, exist_ok=True)
-            self.__download_audio(audiodata_dir)
+            self.__download_dataset("train", DATASET_DIR_BASE / "train.csv", DATASET_DIR_BASE / "train_audio")
+            self.__download_dataset("val", DATASET_DIR_BASE / "val.csv", DATASET_DIR_BASE / "val_audio")
+            self.__download_dataset("test", DATASET_DIR_BASE / "test.csv", DATASET_DIR_BASE / "test_audio")
 
         metadata_df = pd.read_csv(metadata_path)
 
@@ -49,8 +45,22 @@ class Clotho(AudioDataset):
 
         return audio_paths_expanded, captions
 
-    def __download_audio(self, audiodata_dir: str):
-        match self.kind:
+    def __download_dataset(self, kind: str, metadata_path: str | Path, audiodata_dir: str | Path):
+        # Download metadata and create directory if necessary
+        os.makedirs(DATASET_DIR_BASE, exist_ok=True)
+        self.__download_metadata(kind, metadata_path)
+
+        # Split the captions to create new samples
+        metadata_df = pd.read_csv(metadata_path)
+        metadata_df = self.split_captions(metadata_df)
+        metadata_df.to_csv(metadata_path, index=False)
+
+        # Download audios and create directories if necessary
+        os.makedirs(audiodata_dir, exist_ok=True)
+        self.__download_audio(kind, audiodata_dir)
+
+    def __download_audio(self, kind: str, audiodata_dir: str | Path):
+        match kind:
             case "train":
                 filename = "clotho_audio_development.7z"
             case "val":
@@ -58,10 +68,10 @@ class Clotho(AudioDataset):
             case "test":
                 filename = "clotho_audio_evaluation.7z"
             case _:
-                raise ValueError(f"Unknown kind {self.kind}")
+                raise ValueError(f"Unknown kind {kind}")
 
-        zip_path = os.path.join(audiodata_dir, self.kind + ".7z")
-        self.__download_file(BASE_URL + filename, zip_path, f"Downloading {self.kind} audio data")
+        zip_path = os.path.join(audiodata_dir, kind + ".7z")
+        self.download_file(BASE_URL + filename, zip_path, f"Downloading {kind} audio data")
 
         # Extract downloaded zip file
         py7zr.SevenZipFile(zip_path, 'r').extractall(audiodata_dir)
@@ -80,10 +90,10 @@ class Clotho(AudioDataset):
             # Remove the now empty nested directory
             shutil.rmtree(root)
 
-        print(f"Downloaded {self.kind} audio data to {audiodata_dir}")
+        print(f"Downloaded {kind} audio data to {audiodata_dir}")
 
-    def __download_metadata(self, metadata_path: str):
-        match self.kind:
+    def __download_metadata(self, kind: str, metadata_path: str | Path):
+        match kind:
             case "train":
                 filename = "clotho_captions_development.csv"
             case "val":
@@ -91,10 +101,10 @@ class Clotho(AudioDataset):
             case "test":
                 filename = "clotho_captions_evaluation.csv"
             case _:
-                raise ValueError(f"Unknown kind {self.kind}")
+                raise ValueError(f"Unknown kind {kind}")
 
-        self.__download_file(BASE_URL + filename, metadata_path, f"Downloading {self.kind} audio metadata")
-        print(f"Downloaded {self.kind} metadata to {metadata_path}")
+        self.download_file(BASE_URL + filename, metadata_path, f"Downloading {kind} audio metadata")
+        print(f"Downloaded {kind} metadata to {metadata_path}")
 
     @staticmethod
     def split_captions(metadata_df: pd.DataFrame) -> pd.DataFrame:
@@ -113,16 +123,3 @@ class Clotho(AudioDataset):
         )
 
         return metadata_df_melted
-
-    @staticmethod
-    def __download_file(file_url: str, destination_path: str, desc: str):
-        response = requests.get(file_url, stream=True)
-        block_size = 1024
-
-        total_size = int(response.headers.get('content-length', 0))
-        progress_bar = tqdm(total=total_size, unit='iB', unit_scale=True, desc=desc)
-        with open(destination_path, 'wb') as file:
-            for data in response.iter_content(block_size):
-                progress_bar.update(len(data))
-                file.write(data)
-        progress_bar.close()

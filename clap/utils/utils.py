@@ -1,18 +1,8 @@
 from pathlib import Path
 
-import yaml
-
 import torch
 import torchaudio
 import torchaudio.transforms as T
-
-
-def load_config(config: dict | Path | str) -> dict:
-    if isinstance(config, Path) or isinstance(config, str):
-        with open(config, "r") as f:
-            config = yaml.safe_load(f)
-
-    return config
 
 
 def load_audio(audio_path: Path | str, target_sampling_rate, resample: bool = True):
