@@ -7,6 +7,12 @@ This is a custom (unofficial) implementation of the model from the paper [CLAP: 
 CLAP learns acoustic concepts from natural language supervision and excels in various tasks when fine-tuned as well as enables "Zero-Shot" inference.
 In order to improve the base implementation, I have included **improvements** like using a [Hierarchical Token Semantic Audio Transformer](https://doi.org/10.1109/ICASSP43922.2022.9746312) (**HTS-AT**) as audio encoder or **RoBERTa / GPT-2** as text encoder and [Attentional Feature Fusion](https://doi.org/10.1109/WACV48630.2021.00360) (**iAFF**) for effectively processing longer inputs.
 
+Please note: In order to use a pretrained audio encoder for training, please download the official checkpoints yourself (links are below) and change the absolute path in the corresponding configuration file accordingly!
+
+**Pretrained Audio Encoders:**
+
+[HTS-AT checkpoint](https://drive.google.com/file/d/1Nj2OrJiTrn4F7mZxIW1JTUJVpF8MdFB3/view?usp=drive_link) | [CNN14 checkpoint](https://zenodo.org/records/3987831/files/Cnn14_mAP%3D0.431.pth?download=1)
+
 ## Setup
 This package can be easily installed with Conda. To do so, download this repository and do the following:
 ```shell
@@ -285,9 +291,6 @@ These performances were achieved by using this [configuration](clap/configs/clap
 ClAP was briefly trained according to the aforementioned configuration on both AudioCaps and ClothoV2, employing feature fusion for longer audios and simple repeat padding for shorter audios.
 The fine-tuning hyperparameters can be found in the same configuration file.
 A singly fully connected linear layer was trained with the audio encoder for fine-tuning.
-
-Note: In order to use the pretrained audio encoder, you first have to download an official model checkpoint yourself and then change the absolut path accordingly.
-
 
 ### Retrieval performance
 
