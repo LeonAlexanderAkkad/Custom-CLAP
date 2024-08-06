@@ -39,52 +39,54 @@ class AudioCaps(AudioDataset):
         return audio_paths, captions
 
     def __download_dataset(self, metadata_path: str | Path, audiodata_dir: str | Path):
-        # Download metadata and create directory if necessary
-        os.makedirs(DATASET_DIR_BASE, exist_ok=True)
-        self.__download_metadata(metadata_path)
-        metadata_df = pd.read_csv(metadata_path)
-        # Copy metadata for removal of invalid samples
-        metadata_df_new = metadata_df.copy()
-        corrupted_sample = None
+        if not os.path.exists(metadata_path):
+            # Download metadata and create directory if necessary
+            os.makedirs(DATASET_DIR_BASE, exist_ok=True)
+            self.__download_metadata(metadata_path)
 
-        # Download audios and create directories if necessary
-        os.makedirs(audiodata_dir, exist_ok=True)
-        download_dir = os.path.join(DATASET_DIR_BASE, "full_audios")
-        os.makedirs(download_dir, exist_ok=True)
-        for youtube_id, audiocap_id, start_time in zip(metadata_df["youtube_id"], metadata_df["audiocap_id"],
-                                                       metadata_df["start_time"]):
-            if not os.path.exists(os.path.join(audiodata_dir, f'{audiocap_id}.wav')):
-                successful_download = True
-                if not os.path.exists(os.path.join(download_dir, f'{youtube_id}.wav')):
-                    successful_download = self.__download_audio(youtube_id, download_dir)
-                if successful_download:
-                    # Extract audio segment using the given start time in the metadata
-                    self.__extract_audio_segment(
-                        os.path.join(download_dir, f'{youtube_id}.wav'),
-                        start_time,
-                        os.path.join(audiodata_dir, f'{audiocap_id}.wav')
-                    )
-                    try:
-                        # Try to load wav file
-                        torchaudio.load(os.path.join(audiodata_dir, f'{audiocap_id}.wav'))
-                    except RuntimeError:
-                        corrupted_sample = os.path.join(audiodata_dir, f'{audiocap_id}.wav')
+        if not os.path.exists(audiodata_dir):
+            corrupted_sample = None
+            # Download audios and create directories if necessary
+            os.makedirs(audiodata_dir, exist_ok=True)
+            download_dir = os.path.join(DATASET_DIR_BASE, "full_audios")
+            os.makedirs(download_dir, exist_ok=True)
+            metadata_df = pd.read_csv(metadata_path)
+            # Copy metadata for removal of invalid samples
+            metadata_df_new = metadata_df.copy()
+            for youtube_id, audiocap_id, start_time in zip(metadata_df["youtube_id"], metadata_df["audiocap_id"],
+                                                           metadata_df["start_time"]):
+                if not os.path.exists(os.path.join(audiodata_dir, f'{audiocap_id}.wav')):
+                    successful_download = True
+                    if not os.path.exists(os.path.join(download_dir, f'{youtube_id}.wav')):
+                        successful_download = self.__download_audio(youtube_id, download_dir)
+                    if successful_download:
+                        # Extract audio segment using the given start time in the metadata
+                        self.__extract_audio_segment(
+                            os.path.join(download_dir, f'{youtube_id}.wav'),
+                            start_time,
+                            os.path.join(audiodata_dir, f'{audiocap_id}.wav')
+                        )
+                        try:
+                            # Try to load wav file
+                            torchaudio.load(os.path.join(audiodata_dir, f'{audiocap_id}.wav'))
+                        except RuntimeError:
+                            corrupted_sample = os.path.join(audiodata_dir, f'{audiocap_id}.wav')
 
-                else:
-                    # Remove unavailable samples from csv file
-                    metadata_df_new = metadata_df_new[metadata_df_new["youtube_id"] != youtube_id]
+                    else:
+                        # Remove unavailable samples from csv file
+                        metadata_df_new = metadata_df_new[metadata_df_new["youtube_id"] != youtube_id]
+                        metadata_df_new.to_csv(metadata_path, index=False)
+
+                # Remove corrupted samples
+                if corrupted_sample is not None:
+                    print(corrupted_sample)
+                    metadata_df_new = metadata_df_new[metadata_df_new["audiocap_id"] != audiocap_id]
                     metadata_df_new.to_csv(metadata_path, index=False)
+                    print(f"Removing corrupted sample: {corrupted_sample}")
+                    os.remove(corrupted_sample)
+                    corrupted_sample = None
 
-            # Remove corrupted samples
-            if corrupted_sample is not None:
-                print(corrupted_sample)
-                metadata_df_new = metadata_df_new[metadata_df_new["audiocap_id"] != audiocap_id]
-                metadata_df_new.to_csv(metadata_path, index=False)
-                print(f"Removing corrupted sample: {corrupted_sample}")
-                os.remove(corrupted_sample)
-                corrupted_sample = None
-
-        print(f"Downloaded {self.kind} audio data to {audiodata_dir}")
+            print(f"Downloaded {self.kind} audio data to {audiodata_dir}")
 
     def __download_metadata(self, metadata_path: str):
         if not os.path.exists(metadata_path):

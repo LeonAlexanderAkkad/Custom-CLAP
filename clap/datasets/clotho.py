@@ -10,10 +10,6 @@ from glob import glob
 
 import pandas as pd
 
-import requests
-
-from tqdm import tqdm
-
 from .audio_dataset import AudioDataset
 
 
@@ -46,18 +42,20 @@ class Clotho(AudioDataset):
         return audio_paths_expanded, captions
 
     def __download_dataset(self, kind: str, metadata_path: str | Path, audiodata_dir: str | Path):
-        # Download metadata and create directory if necessary
-        os.makedirs(DATASET_DIR_BASE, exist_ok=True)
-        self.__download_metadata(kind, metadata_path)
+        if not os.path.exists(metadata_path):
+            # Download metadata and create directory if necessary
+            os.makedirs(DATASET_DIR_BASE, exist_ok=True)
+            self.__download_metadata(kind, metadata_path)
 
-        # Split the captions to create new samples
-        metadata_df = pd.read_csv(metadata_path)
-        metadata_df = self.split_captions(metadata_df)
-        metadata_df.to_csv(metadata_path, index=False)
+            # Split the captions to create new samples
+            metadata_df = pd.read_csv(metadata_path)
+            metadata_df = self.split_captions(metadata_df)
+            metadata_df.to_csv(metadata_path, index=False)
 
-        # Download audios and create directories if necessary
-        os.makedirs(audiodata_dir, exist_ok=True)
-        self.__download_audio(kind, audiodata_dir)
+        if not os.path.exists(audiodata_dir):
+            # Download audios and create directories if necessary
+            os.makedirs(audiodata_dir, exist_ok=True)
+            self.__download_audio(kind, audiodata_dir)
 
     def __download_audio(self, kind: str, audiodata_dir: str | Path):
         match kind:

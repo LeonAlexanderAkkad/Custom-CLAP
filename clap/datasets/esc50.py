@@ -39,30 +39,33 @@ class ESC50(AudioDataset):
         return audio_paths, torch.tensor(categories).to(get_target_device())
 
     def __download_dataset(self):
-        # Download metadata, create directory and split the metadata into train, validation and test metadata
-        metadata_download_path = os.path.join(DATASET_DIR_BASE, "metadata.csv")
-        os.makedirs(DATASET_DIR_BASE, exist_ok=True)
-        self.__download_metadata(metadata_download_path)
-        metadata_df = pd.read_csv(metadata_download_path)
-        metadata_df["category"] = metadata_df["category"].str.replace("_", " ")
+        if not os.path.exists(DATASET_DIR_BASE / f"{self.kind}.csv"):
+            # Download metadata, create directory and split the metadata into train, validation and test metadata
+            os.makedirs(DATASET_DIR_BASE, exist_ok=True)
+            metadata_download_path = os.path.join(DATASET_DIR_BASE, "metadata.csv")
 
-        # Save class to idx mapping and idx to class mappings
-        metadata_df_targets = metadata_df.drop_duplicates(subset="category", keep="first").sort_values(by="target")
-        class_to_idx = dict(zip(metadata_df_targets["category"], metadata_df_targets["target"]))
-        idx_to_class = dict(zip(metadata_df_targets["target"], metadata_df_targets["category"]))
-        with open(DATASET_DIR_BASE / "class_to_idx.json", 'w') as f:
-            json.dump(class_to_idx, f, indent=4)
-        with open(DATASET_DIR_BASE / "idx_to_class.json", 'w') as f:
-            json.dump(idx_to_class, f, indent=4)
+            self.__download_metadata(metadata_download_path)
+            metadata_df = pd.read_csv(metadata_download_path)
+            metadata_df["category"] = metadata_df["category"].str.replace("_", " ")
 
-        self.__split_metadata(metadata_df)
-        os.remove(metadata_download_path)
+            # Save class to idx mapping and idx to class mappings
+            metadata_df_targets = metadata_df.drop_duplicates(subset="category", keep="first").sort_values(by="target")
+            class_to_idx = dict(zip(metadata_df_targets["category"], metadata_df_targets["target"]))
+            idx_to_class = dict(zip(metadata_df_targets["target"], metadata_df_targets["category"]))
+            with open(DATASET_DIR_BASE / "class_to_idx.json", 'w') as f:
+                json.dump(class_to_idx, f, indent=4)
+            with open(DATASET_DIR_BASE / "idx_to_class.json", 'w') as f:
+                json.dump(idx_to_class, f, indent=4)
 
-        # Download audios and create directories if necessary
-        audiodata_download_path = os.path.join(DATASET_DIR_BASE, "audio")
-        os.makedirs(audiodata_download_path, exist_ok=True)
-        self.__download_audio(audiodata_download_path)
-        self.__split_audios()
+            self.__split_metadata(metadata_df)
+            os.remove(metadata_download_path)
+
+        if not os.path.exists(DATASET_DIR_BASE / f"{self.kind}_audio"):
+            # Download audios and create directories if necessary
+            audiodata_download_path = os.path.join(DATASET_DIR_BASE, "audio")
+            os.makedirs(audiodata_download_path, exist_ok=True)
+            self.__download_audio(audiodata_download_path)
+            self.__split_audios()
 
     def __download_audio(self, audiodata_dir: str):
         zip_path = os.path.join(audiodata_dir, "audio.zip")
