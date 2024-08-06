@@ -7,7 +7,7 @@ This is a custom (unofficial) implementation of the model from the paper [CLAP: 
 CLAP learns acoustic concepts from natural language supervision and excels in various tasks when fine-tuned as well as enables "Zero-Shot" inference.
 In order to improve the base implementation, I have included **improvements** like using a [Hierarchical Token Semantic Audio Transformer](https://doi.org/10.1109/ICASSP43922.2022.9746312) (**HTS-AT**) as audio encoder or **RoBERTa / GPT-2** as text encoder and [Attentional Feature Fusion](https://doi.org/10.1109/WACV48630.2021.00360) (**iAFF**) for effectively processing longer inputs.
 
-Please note: In order to use a pretrained audio encoder for training, please download the official checkpoints yourself (links are below) and change the absolute path in the corresponding configuration file accordingly!
+Please note: In order to use a pretrained audio encoder for training, please download the official checkpoints yourself (links are below) and change the absolute path in the corresponding configuration file.
 
 **Pretrained Audio Encoders:**
 

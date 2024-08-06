@@ -1,3 +1,5 @@
+import os
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -50,7 +52,7 @@ class AudioEncoder(nn.Module):
 
         encoder = AUDIO_ENCODERS[self.name](config=self.audio_cfg)
 
-        if pretrained_path:
+        if pretrained_path and os.path.exists(pretrained_path):
             ckpt = torch.load(pretrained_path)
 
             if ckpt.get("model") is not None:
