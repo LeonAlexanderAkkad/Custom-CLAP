@@ -1,2 +1,3 @@
 from .eval_zero_shot_classification import eval_zero_shot_classification
 from .eval_retrieval import eval_retrieval
+from .eval_fine_tuned_classification import eval_fine_tuned_classification

@@ -1,6 +1,6 @@
-from pathlib import Path
-
 import os
+
+from pathlib import Path
 
 import numpy as np
 
@@ -14,15 +14,17 @@ from torch.utils.data import DataLoader
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from .retrieval_metrics import BatchRetrievalMetrics, EpochRetrievalMetrics
-from ..utils import get_target_device, load_clap_ckpt
-from ..model import Clap
+from sklearn.metrics import accuracy_score
+
+from .classification_metrics import BatchClassificationMetrics, EpochClassificationMetrics
+from ..utils import get_target_device, load_clf_ckpt
+from ..model import ClapAudioClassifier
 
 
-class ClapTrainer:
-    """A trainer class for optimizing and evaluating the Clap model.
+class ClapFinetuner:
+    """A finetuner class for training an audio classifier / fine-tuning a CLAP model.
 
-    This class handles the training, evaluation, and checkpoint loading for the Clap model.
+    This class handles the training, evaluation, and checkpoint loading for the Classifier model.
 
     Attributes
     ----------
@@ -53,31 +55,22 @@ class ClapTrainer:
 
     Methods
     -------
-    from_ckpt(cls, audio_encoder, text_encoder, cfg_version, ckpt_version, optimizer, scheduler, train_loader, val_loader, test_loader, epochs)
-        Creates an instance of ClapTrainer from a checkpoint file.
-    compute_recall_at_k(similarity, k)
-        Compute Recall@K for a given similarity matrix.
-    compute_average_precision(scores, labels)
-        Compute Average Precision (AP) for a single query.
-    compute_mean_average_precision(similarity, k=None)
-        Compute mean Average Precision (mAP) or mean Average Precision at k (mAP@k).
-    set_random_seed(seed=None)
-        Set the random seed for reproducibility.
-    get_lr(optimizer)
-        Get the learning rate used for optimizing.
-    train_and_eval(out_path, early_stopping=False)
+    from_ckpt(cls, audio_encoder, text_encoder, clap_cfg_version, clf_ckpt_version, optimizer, scheduler, train_loader, val_loader, test_loader, epochs)
+        Creates an instance of ClapFinetuner from a checkpoint file.
+    compute_accuracy(predictions, targets)
+    finetune_and_eval(out_path, early_stopping=False)
         Optimizes a given model for a number of epochs and saves the best model.
     eval_model(test_set=False)
         Evaluates a given model on valuation or test data.
-    train_model()
-        Trains a given model on the training data.
+    finetune_model()
+        Fine-tunes a given model on the training data.
     """
     def __init__(
             self,
             train_loader: DataLoader,
             val_loader: DataLoader,
             test_loader: DataLoader,
-            model: Clap,
+            model: ClapAudioClassifier,
             optimizer: Optimizer,
             loss_fn: nn.Module,
             epochs: int,
@@ -93,8 +86,8 @@ class ClapTrainer:
             DataLoader instance for loading validation data in batches.
         test_loader : DataLoader
             DataLoader instance for loading test data in batches.
-        model : Clap
-            The Clap model to be trained and evaluated.
+        model : ClapAudioClassifier
+            The ClapAudioClassifier model to be trained and evaluated.
         optimizer : Optimizer
             The optimizer used for updating the model parameters.
         loss_fn : nn.Module
@@ -112,9 +105,9 @@ class ClapTrainer:
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.scheduler = scheduler
-        self.train_epoch_metrics = EpochRetrievalMetrics()
-        self.val_epoch_metrics = EpochRetrievalMetrics()
-        self.test_epoch_metrics = EpochRetrievalMetrics()
+        self.train_epoch_metrics = EpochClassificationMetrics()
+        self.val_epoch_metrics = EpochClassificationMetrics()
+        self.test_epoch_metrics = EpochClassificationMetrics()
         self.current_epoch = 0
         self.epochs = epochs
         self._device = get_target_device()
@@ -122,7 +115,7 @@ class ClapTrainer:
         self._global_val_step = 0
         self._global_test_step = 0
 
-    def train_and_eval(
+    def finetune_and_eval(
             self,
             audio_encoder: str,
             text_encoder: str,
@@ -153,16 +146,16 @@ class ClapTrainer:
             Dictionaries for the train, validation and test average metrics computed during training and/or evaluation.
         """
         best_loss = None
-        ckpt_path = Path(__file__).parent.parent / "checkpoints" / f"clap_{audio_encoder}_{text_encoder}_v{version}.ckpt"
+        ckpt_path = Path(__file__).parent.parent / "checkpoints" / f"clf_{audio_encoder}_{text_encoder}_v{version}.ckpt"
         os.makedirs(ckpt_path.parent, exist_ok=True)
         # Tell wandb to watch the model.
         wb.watch(self.model, criterion=self.loss_fn, log="all", log_freq=10)
 
-        print("\nStarting to train Model")
+        print("\nStarting to finetune Classifier")
         for _ in range(self.current_epoch, self.epochs):
 
             # Get epoch metrics
-            train_metrics = self.train_model()
+            train_metrics = self.finetune_model()
             val_metrics = self.eval_model()
 
             # Update epoch metrics
@@ -172,27 +165,9 @@ class ClapTrainer:
             wb.log(
                 {
                     "train/loss": train_metrics["avg_loss"],
-                    "train/a2t/recall@1": train_metrics["avg_r1_a2t"],
-                    "train/a2t/recall@5": train_metrics["avg_r5_a2t"],
-                    "train/a2t/recall@10": train_metrics["avg_r10_a2t"],
-                    "train/a2t/mAP@10": train_metrics["avg_map10_a2t"],
-                    "train/a2t/mAP": train_metrics["avg_map_a2t"],
-                    "train/t2a/recall@1": train_metrics["avg_r1_t2a"],
-                    "train/t2a/recall@5": train_metrics["avg_r5_t2a"],
-                    "train/t2a/recall@10": train_metrics["avg_r10_t2a"],
-                    "train/t2a/mAP@10": train_metrics["avg_map10_t2a"],
-                    "train/t2a/mAP": train_metrics["avg_map_t2a"],
+                    "train/accuracy": train_metrics["avg_accuracy"],
                     "val/loss": val_metrics["avg_loss"],
-                    "val/a2t/recall@1": val_metrics["avg_r1_a2t"],
-                    "val/a2t/recall@5": val_metrics["avg_r5_a2t"],
-                    "val/a2t/recall@10": val_metrics["avg_r10_a2t"],
-                    "val/a2t/mAP@10": val_metrics["avg_map10_a2t"],
-                    "val/a2t/mAP": val_metrics["avg_map_a2t"],
-                    "val/t2a/recall@1": val_metrics["avg_r1_t2a"],
-                    "val/t2a/recall@5": val_metrics["avg_r5_t2a"],
-                    "val/t2a/recall@10": val_metrics["avg_r10_t2a"],
-                    "val/t2a/mAP@10": val_metrics["avg_map10_t2a"],
-                    "val/t2a/mAP": val_metrics["avg_map_t2a"],
+                    "val/accuracy": val_metrics["avg_accuracy"],
                     "epoch": self.current_epoch
                 }
             )
@@ -201,14 +176,8 @@ class ClapTrainer:
                 f"\nEpoch: {str(self.current_epoch).zfill(len(str(self.epochs)))} || "
                 f"Training loss: {train_metrics['avg_loss']:.4f} || "
                 f"Validation loss: {val_metrics['avg_loss']:.4f} || "
-                f"Training A-T R@1: {train_metrics['avg_r1_a2t']:.4f} || "
-                f"Validation A-T R@1: {val_metrics['avg_r1_a2t']:.4f} || "
-                f"Training A-T mAp: {train_metrics['avg_map_a2t']:.4f} || "
-                f"Validation A-T mAP: {val_metrics['avg_map_a2t']:.4f} || "
-                f"Training T-A R@1: {train_metrics['avg_r1_t2a']:.4f} || "
-                f"Validation T-A R@1: {val_metrics['avg_r1_t2a']:.4f} || "
-                f"Training T-A mAP: {train_metrics['avg_map_t2a']:.4f} || "
-                f"Validation T-A mAP: {val_metrics['avg_map_t2a']:.4f}"
+                f"Training accuracy: {train_metrics['avg_accuracy']:.4f} || "
+                f"Validation accuracy: {val_metrics['avg_accuracy']:.4f}"
             )
 
             # Check for early stopping.
@@ -221,10 +190,7 @@ class ClapTrainer:
 
                     print(
                         f"\nFinal loss: {test_metrics['avg_loss']} || "
-                        f"Final test T-A R@1: {test_metrics['avg_r1_t2a']:.4f} || "
-                        f"Final test A-T R@1: {test_metrics['avg_r1_a2t']:.4f} || "
-                        f"Final test T-A mAP: {test_metrics['avg_map_t2a']:.4f} || "
-                        f"Final test A-T mAP: {test_metrics['avg_map_a2t']:.4f}"
+                        f"Final test accuracy: {test_metrics['avg_accuracy']:.4f}"
                     )
                     print("\nDone!")
 
@@ -258,10 +224,7 @@ class ClapTrainer:
 
         print(
             f"\nFinal loss: {test_metrics['avg_loss']} || "
-            f"Final test T-A R@1: {test_metrics['avg_r1_t2a']:.4f} || "
-            f"Final test A-T R@1: {test_metrics['avg_r1_a2t']:.4f} || "
-            f"Final test T-A mAP: {test_metrics['avg_map_t2a']:.4f} || "
-            f"Final test A-T mAP: {test_metrics['avg_map_a2t']:.4f}"
+            f"Final test accuracy: {test_metrics['avg_accuracy']:.4f}"
         )
         print("\nDone!")
 
@@ -285,53 +248,37 @@ class ClapTrainer:
         # Turn on evaluation mode for the model.
         self.model.eval()
 
-        batch_metrics = BatchRetrievalMetrics()
+        batch_metrics = BatchClassificationMetrics()
 
         # Compute the loss with torch.no_grad() as gradients aren't used.
         with torch.no_grad():
-            for _, caption, audio in tqdm(self.test_loader, desc="Evaluating model on val/test set"):
+            for _, target, audio in tqdm(self.test_loader, desc="Evaluating model on val/test set"):
 
-                # Compute similarity matrix and loss
-                text_em, audio_em, _ = self.model(caption, audio)
-                similarity = self.model.compute_similarity(text_em, audio_em)
-                loss = self.loss_fn(similarity)
+                # Compute predictions and loss
+                prediction = self.model(audio)
+                loss = self.loss_fn(prediction, target)
 
-                # Audio-to-Text retrieval
-                r1_a2t, r5_a2t, r10_a2t, map10_a2t, map_a2t = self.compute_retrieval_metrics(similarity)
-
-                # Text-to-Audio retrieval
-                r1_t2a, r5_t2a, r10_t2a, map10_t2a, map_t2a = self.compute_retrieval_metrics(similarity.T)
+                # Compute accuracy
+                acc = self.compute_accuracy(prediction, target)
 
                 # Update metrics
                 batch_metrics.update(
                     loss=loss.item(),
-                    r1_a2t=r1_a2t,
-                    r5_a2t=r5_a2t,
-                    r10_a2t=r10_a2t,
-                    map10_a2t=map10_a2t,
-                    map_a2t=map_a2t,
-                    r1_t2a=r1_t2a,
-                    r5_t2a=r5_t2a,
-                    r10_t2a=r10_t2a,
-                    map10_t2a=map10_t2a,
-                    map_t2a=map_t2a
+                    accuracy=acc
                 )
 
-                # Log metrics.
+                # Log metrics
+                batch_metrics.update(
+                    loss=loss.item(),
+                    accuracy=acc
+                )
+
+                # Log batch loss and accuracy as well as predictions.
                 if test_set:
                     wb.log(
                         {
                             "test/batch loss": loss.item(),
-                            "test/a2t/batch recall@1": r1_a2t,
-                            "test/a2t/batch recall@5": r5_a2t,
-                            "test/a2t/batch recall@10": r10_a2t,
-                            "test/a2t/batch mAP@10": map10_a2t,
-                            "test/a2t/batch mAP": map_a2t,
-                            "test/t2a/batch recall@1": r1_t2a,
-                            "test/t2a/batch recall@5": r5_t2a,
-                            "test/t2a/batch recall@10": r10_t2a,
-                            "test/t2a/batch mAP@10": map10_t2a,
-                            "test/t2a/batch mAP": map_t2a,
+                            "test/batch accuracy": acc,
                             "test/step": self._global_test_step
                         }
                     )
@@ -340,16 +287,7 @@ class ClapTrainer:
                     wb.log(
                         {
                             "val/batch loss": loss.item(),
-                            "val/a2t/batch recall@1": r1_a2t,
-                            "val/a2t/batch recall@5": r5_a2t,
-                            "val/a2t/batch recall@10": r10_a2t,
-                            "val/a2t/batch mAP@10": map10_a2t,
-                            "val/a2t/batch mAP": map_a2t,
-                            "val/t2a/batch recall@1": r1_t2a,
-                            "val/t2a/batch recall@5": r5_t2a,
-                            "val/t2a/batch recall@10": r10_t2a,
-                            "val/t2a/batch mAP@10": map10_t2a,
-                            "val/t2a/batch mAP": map_t2a,
+                            "val/batch accuracy": acc,
                             "val/step": self._global_val_step
                         }
                     )
@@ -357,7 +295,7 @@ class ClapTrainer:
 
         return batch_metrics.compute_average_metrics()
 
-    def train_model(self) -> dict[str, float]:
+    def finetune_model(self) -> dict[str, float]:
         """Trains a given model on the training data.
 
         Returns
@@ -369,36 +307,23 @@ class ClapTrainer:
         self.model.train()
         torch.enable_grad()
 
-        batch_metrics = BatchRetrievalMetrics()
+        batch_metrics = BatchClassificationMetrics()
 
-        for _, caption, audio in tqdm(self.train_loader, desc=f"Training epoch {self.current_epoch}"):
+        for _, target, audio in tqdm(self.train_loader, desc=f"Training epoch {self.current_epoch}"):
             # Zero the gradients
             self.optimizer.zero_grad()
 
             # Compute similarity matrix and loss
-            text_em, audio_em, _ = self.model(caption, audio)
-            similarity = self.model.compute_similarity(text_em, audio_em)
-            loss = self.loss_fn(similarity)
+            prediction = self.model(audio)
+            loss = self.loss_fn(prediction, target)
 
-            # Audio-to-Text retrieval
-            r1_a2t, r5_a2t, r10_a2t, map10_a2t, map_a2t = self.compute_retrieval_metrics(similarity)
+            # Compute accuracy
+            acc = self.compute_accuracy(prediction, target)
 
-            # Text-to-Audio retrieval
-            r1_t2a, r5_t2a, r10_t2a, map10_t2a, map_t2a = self.compute_retrieval_metrics(similarity.T)
-
-            # Update metrics
+            # Log metrics
             batch_metrics.update(
                 loss=loss.item(),
-                r1_a2t=r1_a2t,
-                r5_a2t=r5_a2t,
-                r10_a2t=r10_a2t,
-                map10_a2t=map10_a2t,
-                map_a2t=map_a2t,
-                r1_t2a=r1_t2a,
-                r5_t2a=r5_t2a,
-                r10_t2a=r10_t2a,
-                map10_t2a=map10_t2a,
-                map_t2a=map_t2a
+                accuracy=acc
             )
 
             # Compute the gradients and perform the optimizer and scheduler step.
@@ -406,20 +331,11 @@ class ClapTrainer:
             self.optimizer.step()
             self.scheduler.step()
 
-            # Log metrics.
+            # Log batch loss and accuracy.
             wb.log(
                 {
                     "train/batch loss": loss.item(),
-                    "train/a2t/batch recall@1": r1_a2t,
-                    "train/a2t/batch recall@5": r5_a2t,
-                    "train/a2t/batch recall@10": r10_a2t,
-                    "train/a2t/batch mAP@10": map10_a2t,
-                    "train/a2t/batch mAP": map_a2t,
-                    "train/t2a/batch recall@1": r1_t2a,
-                    "train/t2a/batch recall@5": r5_t2a,
-                    "train/t2a/batch recall@10": r10_t2a,
-                    "train/t2a/batch mAP@10": map10_t2a,
-                    "train/t2a/batch mAP": map_t2a,
+                    "train/batch accuracy": acc,
                     "train/step": self._global_train_step
                 }
             )
@@ -433,19 +349,19 @@ class ClapTrainer:
             cls,
             audio_encoder: str,
             text_encoder: str,
-            cfg_version: str | int,
-            ckpt_version: str | int,
+            clap_cfg_version: str | int,
+            clf_ckpt_version: str | int,
             optimizer: Optimizer,
             scheduler: LRScheduler,
             train_loader: DataLoader,
             val_loader: DataLoader,
             test_loader: DataLoader,
             epochs: int
-    ) -> "ClapTrainer":
-        """Create an instance of ClapTrainer from a checkpoint file (e.g., a ckpt file).
+    ) -> "ClapFinetuner":
+        """Create an instance of ClapFinetuner from a checkpoint file (e.g., a ckpt file).
 
-        This method loads a Clap model and its associated training state from a checkpoint file.
-        It initializes the ClapTrainer with the loaded model, optimizer, scheduler, data loaders,
+        This method loads a ClapAudioClassifier model and its associated training state from a checkpoint file.
+        It initializes the ClapFinetuner with the loaded model, optimizer, scheduler, data loaders,
         and other training parameters.
 
         Parameters
@@ -454,10 +370,10 @@ class ClapTrainer:
             The name of the audio encoder to use.
         text_encoder : str
             The name of the text encoder to use.
-        cfg_version : str | int
-            The version of the config file to load.
-        ckpt_version : str or int
-            The version of the checkpoint to load.
+        clap_cfg_version : str | int
+            The version of the clap config file to load.
+        clf_ckpt_version : str or int
+            The version of the classifier checkpoint to load.
         optimizer : Optimizer
             The optimizer to use for training.
         scheduler : LRScheduler
@@ -473,8 +389,8 @@ class ClapTrainer:
 
         Returns
         -------
-        ClapTrainer
-            An instance of the ClapTrainer class initialized with the checkpoint.
+        ClapFinetuner
+            An instance of the ClapFinetuner class initialized with the checkpoint.
 
         Raises
         ------
@@ -497,11 +413,11 @@ class ClapTrainer:
         >>> val_loader = torch.utils.data.DataLoader(...)
         >>> test_loader = torch.utils.data.DataLoader(...)
         >>> epochs = 100
-        >>> trainer = ClapTrainer.from_ckpt(
+        >>> trainer = ClapFinetuner.from_ckpt(
         ...     audio_encoder=audio_encoder,
         ...     text_encoder=text_encoder,
-        ...     cfg_version=cfg_version,
-        ...     ckpt_version=ckpt_version,
+        ...     clap_cfg_version=cfg_version,
+        ...     clf_ckpt_version=ckpt_version,
         ...     optimizer=optimizer,
         ...     scheduler=scheduler,
         ...     train_loader=train_loader,
@@ -515,7 +431,7 @@ class ClapTrainer:
         Ensure the checkpoint file path is correct and the file is properly formatted:
 
         >>> try:
-        ...     trainer = ClapTrainer.from_ckpt(
+        ...     trainer = ClapFinetuner.from_ckpt(
         ...         audio_encoder="invalid_audio_encoder",
         ...         text_encoder="invalid_text_encoder",
         ...         cfg_version=999,
@@ -534,19 +450,19 @@ class ClapTrainer:
 
         Notes
         -----
-        - The method `load_clap_ckpt` is responsible for finding and loading the checkpoint file.
+        - The method `load_ckpt` is responsible for finding and loading the checkpoint file.
         - The method `Clap.from_ckpt` is used to load the Clap model from the checkpoint.
         """
         # Load model with specified encoder and version
-        model = Clap.from_ckpt(
+        model = ClapAudioClassifier.from_ckpt(
             audio_encoder=audio_encoder,
             text_encoder=text_encoder,
-            cfg_version=cfg_version,
-            ckpt_version=ckpt_version
+            clap_cfg_version=clap_cfg_version,
+            clf_ckpt_version=clf_ckpt_version
         ).to(get_target_device())
 
         # Load metrics and other hyperparameters
-        ckpt = load_clap_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, version=ckpt_version)
+        ckpt = load_clf_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, version=clf_ckpt_version)
         epoch = ckpt["epoch"]
         train_metrics = ckpt["train_metrics"]
         val_metrics = ckpt["val_metrics"]
@@ -572,94 +488,10 @@ class ClapTrainer:
         return trainer
 
     @staticmethod
-    def compute_recall_at_k(similarity: torch.Tensor, k: int) -> float:
-        """Compute Recall@K for a given similarity matrix.
+    def compute_accuracy(predictions: torch.Tensor, targets: torch.Tensor) -> float:
+        predictions = predictions.detach().cpu().numpy()
+        targets = targets.detach().cpu().numpy()
+        predictions = np.argmax(predictions, axis=1)
+        acc = accuracy_score(targets, predictions)
 
-        Parameters
-        ----------
-        similarity : torch.Tensor,
-            Tensor of shape (N, N) where N is the number of samples.
-        k : int
-            The value of K for Recall@K.
-
-        Returns
-        -------
-        float
-            The Recall@K for the A-T or T-A retrieval respectively.
-        """
-
-        N = similarity.shape[0]
-        correct = 0
-
-        for i in range(N):
-            # Get the indices of the top K similarities for each query
-            top_k_indices = torch.topk(similarity[i], k).indices
-            # Check if the correct pair is within the top K
-            if i in top_k_indices:
-                correct += 1
-
-        recall_at_k = correct / N
-        return recall_at_k
-
-    @staticmethod
-    def compute_average_precision(scores: np.ndarray, labels: np.ndarray) -> float:
-        """ Compute Average Precision (AP) for a single query."""
-        sorted_indices = np.argsort(-scores)
-        sorted_labels = labels[sorted_indices]
-
-        # Compute precision for all k
-        cumulative_sum = np.cumsum(sorted_labels, 0)
-        precision_at_k = cumulative_sum / (np.arange(len(sorted_labels)) + 1)
-
-        relevant_indices = np.where(sorted_labels == 1)[0]
-        # Prevent 0 division
-        if len(relevant_indices) == 0:
-            return 0
-
-        # Compute average precision
-        ap = np.sum(precision_at_k[relevant_indices]) / len(relevant_indices)
-
-        return ap
-
-    @staticmethod
-    def compute_mean_average_precision(similarity: torch.Tensor, k: int = None):
-        """
-        Compute mean Average Precision (mAP) or mean Average Precision at k (mAP@k).
-        """
-        num_queries = similarity.shape[0]
-        similarity = similarity.cpu().detach().numpy()
-
-        # Create ground truth identity matrix
-        ground_truth = np.eye(num_queries)
-
-        aps = []
-        for i in range(num_queries):
-            scores = similarity[i]
-            labels = ground_truth[i]
-
-            # Compute top_k map if specified
-            if k is not None:
-                sorted_indices = np.argsort(-scores)
-                top_k_indices = sorted_indices[:k]
-                scores = scores[top_k_indices]
-                labels = labels[top_k_indices]
-
-            # Compute average precision
-            ap = ClapTrainer.compute_average_precision(scores, labels)
-            aps.append(ap)
-
-        # Compute mean average precision
-        map_score = np.mean(aps)
-
-        return map_score
-
-    @staticmethod
-    def compute_retrieval_metrics(similarity: torch.Tensor):
-        """Compute retrieval metrics for a given similarity matrix."""
-        r1 = ClapTrainer.compute_recall_at_k(similarity, k=1)
-        r5 = ClapTrainer.compute_recall_at_k(similarity, k=5)
-        r10 = ClapTrainer.compute_recall_at_k(similarity, k=10)
-        map10 = ClapTrainer.compute_mean_average_precision(similarity, k=10)
-        map = ClapTrainer.compute_mean_average_precision(similarity)
-
-        return r1, r5, r10, map, map10
+        return acc

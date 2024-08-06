@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 
 @dataclass
 class BatchRetrievalMetrics:
-    """Simple Dataclass for storing batch retrieval metrics."""
     batch_losses: list[float] = field(default_factory=list)
     batch_r1_a2t: list[float] = field(default_factory=list)
     batch_r5_a2t: list[float] = field(default_factory=list)
@@ -63,7 +62,6 @@ class BatchRetrievalMetrics:
 
 @dataclass
 class EpochRetrievalMetrics:
-    """Simple Dataclass for storing epoch retrieval metrics."""
     epoch_losses: list[float] = field(default_factory=list)
     epoch_r1_a2t: list[float] = field(default_factory=list)
     epoch_r5_a2t: list[float] = field(default_factory=list)

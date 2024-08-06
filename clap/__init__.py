@@ -1,1 +1,1 @@
-from .model import Clap
+from .model import Clap, ClapAudioClassifier

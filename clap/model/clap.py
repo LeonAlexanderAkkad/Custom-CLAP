@@ -160,7 +160,7 @@ class Clap(nn.Module):
         return clap
 
     @classmethod
-    def from_encoders(cls, audio_encoder: str, text_encoder: str, cfg_version: str | int) -> "Clap":
+    def from_encoders(cls, audio_encoder: str, text_encoder: str, version: str | int) -> "Clap":
         """Create an instance of Clap from audio and text encoders as well as a config version.
 
         This method initializes a Clap instance based on the provided
@@ -172,7 +172,7 @@ class Clap(nn.Module):
             The name of the audio encoder to use.
         text_encoder : str
             The name of the text encoder to use.
-        cfg_version: str or int
+        version: str or int
             The version of the config to load.
 
         Returns
@@ -199,5 +199,5 @@ class Clap(nn.Module):
         - The method `load_clap_config` is responsible for finding and loading the configuration file.
         """
 
-        config = load_clap_config(audio_encoder, text_encoder, cfg_version)
+        config = load_clap_config(audio_encoder, text_encoder, version)
         return cls(config)

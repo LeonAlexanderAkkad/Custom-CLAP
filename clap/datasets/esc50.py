@@ -1,5 +1,7 @@
 import os
 
+import torch
+
 from pathlib import Path
 
 import shutil
@@ -12,9 +14,8 @@ from glob import glob
 
 import pandas as pd
 
-from typing import Literal
-
 from .audio_dataset import AudioDataset
+from ..utils import get_target_device
 
 
 BASE_URL = "https://github.com/karolpiczak/ESC-50/"
@@ -35,7 +36,7 @@ class ESC50(AudioDataset):
         audio_paths = sorted(glob(os.path.join(audiodata_dir, "*.wav")))
         categories = [metadata_df[metadata_df["filename"] == os.path.basename(audio_path)]["target"].item() for audio_path in audio_paths]
 
-        return audio_paths, categories
+        return audio_paths, torch.tensor(categories).to(get_target_device())
 
     def __download_dataset(self):
         # Download metadata, create directory and split the metadata into train, validation and test metadata

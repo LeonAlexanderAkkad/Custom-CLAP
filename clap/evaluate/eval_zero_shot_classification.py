@@ -28,22 +28,22 @@ def eval_zero_shot_classification(model: Clap, eval_loader: DataLoader, class_em
     float
         The zero-shot classification accuracy of the model.
     """
-    # Set the model to eval mode and freeze the encoders
+    # Set the model to eval mode
     model.eval()
 
     # Compute predictions and targets
-    y_predictions, y_targets = [], []
+    predictions, targets = [], []
     for _, target, audio in tqdm(eval_loader, total=len(eval_loader), desc="Evaluating Zero-Shot Classification"):
         audio_embeddings = model.get_audio_embeddings(audio)
         similarity = model.compute_similarity(class_embeddings, audio_embeddings)
-        y_pred = F.softmax(similarity.detach().cpu(), dim=1).numpy()
-        y_predictions.append(y_pred)
-        y_targets.append(target)
+        pred = F.softmax(similarity.detach().cpu(), dim=1).numpy()
+        predictions.append(pred)
+        targets.append(target)
 
     # Compute Zero-Shot accuracy
-    y_predictions = np.concatenate(y_predictions, axis=0)
-    y_predictions = np.argmax(y_predictions, axis=1)
-    y_targets = np.concatenate(y_targets, axis=0)
-    acc = accuracy_score(y_targets, y_predictions)
+    predictions = np.concatenate(predictions, axis=0)
+    predictions = np.argmax(predictions, axis=1)
+    targets = np.concatenate(targets, axis=0)
+    acc = accuracy_score(targets, predictions)
 
     return acc

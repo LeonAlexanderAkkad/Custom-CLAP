@@ -21,14 +21,13 @@ def eval_retrieval(model: Clap, test_loader: DataLoader) -> dict[str, float]:
     dict[str, float]
         A dictionary containing the averaged retrieval metrics
     """
-    # Set the model to eval mode and freeze the encoders
+    # Set the model to eval mode
     model.eval()
 
     batch_metrics = BatchRetrievalMetrics()
 
-    # Compute the loss with torch.no_grad() as gradients aren't used.
     for _, caption, audio in tqdm(test_loader, desc="Computing retrieval metrics"):
-        # Compute similarity matrix and loss
+        # Compute similarity matrix
         text_embeddings = model.get_text_embeddings(caption)
         audio_embeddings = model.get_audio_embeddings(audio)
         similarity = model.compute_similarity(text_embeddings, audio_embeddings)

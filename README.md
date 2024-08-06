@@ -33,6 +33,7 @@ For further insights into the `ClapDataset` used for training have a look at [Da
 
 ### Training CLAP on AudioCaps and ClothoV2
 For training, I employ the described loss from the paper, Adam optimizer and a learning rate scheduler that uses a warm-up and a cosine annealing phase.
+The exact configurations can be seen in the Training Notebook.
 - Jupyter Notebook: [Training Notebook](examples/training.ipynb)
 - Python script:
 
@@ -81,6 +82,64 @@ trainer = ClapTrainer(
 )
 
 train_metrics, val_metrics, test_metrics = trainer.train_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=1, early_stopping=False)
+```
+
+### Fine-Tuning CLAP on ESC-50
+For fine-tuning, I froze the text encoder and trained a single fully connected linear layer and the audio encoder on the ESC-50 dataset.
+The ESC-50 dataset was simply split in the following way: The first 4 folds were used as training, the final fold was split so that the validation set comprises 150 samples and the test set comprises 250 samples.
+I made sure that no samples from the same audio source ended up in different splits.
+The Adam optimizer with learning rate scheduling (30 steps warm-up stage, followed by cosine learning rate annealing) was employed.
+The exact configurations can be seen in the Fine-Tuning Notebook.
+- Jupyter Notebook: [Fine-Tuning Notebook](examples/finetuning.ipynb)
+- Python script:
+
+```python
+import torch
+from torch import optim
+from torch.utils.data import DataLoader
+from clap import Clap, ClapAudioClassifier
+from clap.training import create_scheduler, ClapFinetuner
+from clap.datasets import ClapDataset
+from clap.utils import get_target_device, load_clap_config, set_random_seed
+
+# Load config for audio processing and get target device
+audio_encoder = "htsat-tiny"
+text_encoder = "gpt2"
+cfg_version = 1
+ckpt_version = 2
+config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+device = get_target_device()
+
+# Load Datasets
+seed = set_random_seed(None)
+train_dataset = ClapDataset(config=config, kinds=["train"], datasets=["ESC50"])
+val_dataset = ClapDataset(config=config, kinds=["val"], datasets=["ESC50"])
+test_dataset = ClapDataset(config=config, kinds=["test"], datasets=["ESC50"])
+
+# Define data loaders
+train_loader = DataLoader(train_dataset, batch_size=config["fine-tuning"]["batch_size"], shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=config["fine-tuning"]["batch_size"])
+test_loader = DataLoader(test_dataset, batch_size=config["fine-tuning"]["batch_size"])
+
+# Define model, optimizer, scheduler and loss function
+clap = Clap.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, ckpt_version=ckpt_version, cfg_version=cfg_version)
+clap_clf = ClapAudioClassifier(clap=clap, config=config).to(device)
+print(f"Number of parameters to train: {sum(p.numel() for p in clap_clf.parameters())}")
+optimizer = optim.Adam(clap.parameters(), lr=config["fine-tuning"]["learning_rate"])
+scheduler = create_scheduler(optimizer, warmup_steps=31, T_max=len(train_loader)*config["fine-tuning"]["epochs"], milestones=[31])
+loss_fn = torch.nn.CrossEntropyLoss()
+trainer = ClapFinetuner(
+    train_loader=train_loader,
+    val_loader=val_loader,
+    test_loader=test_loader,
+    model=clap_clf,
+    optimizer=optimizer,
+    scheduler=scheduler,
+    loss_fn=loss_fn,
+    epochs=config["fine-tuning"]["epochs"]
+)
+
+train_metrics, val_metrics, test_metrics = trainer.finetune_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=1, early_stopping=False)
 ```
 
 ### Evaluating the retrieval performance of CLAP on AudioCaps and ClothoV2
@@ -166,6 +225,36 @@ acc = eval_zero_shot_classification(model=model, eval_loader=esc50_dataloader, c
 print(f'ESC50 Accuracy {acc}')
 ```
 
+### Evaluating the Fine-Tuned CLAP audio classifier on the ESC-50 datset
+
+
+```python
+from torch.utils.data import DataLoader
+from clap import  ClapAudioClassifier
+from clap.evaluate import eval_fine_tuned_classification
+from clap.datasets import ClapDataset
+from clap.utils import get_target_device, load_clap_config
+
+# Load config for audio processing and get target device
+audio_encoder = "htsat-tiny"
+text_encoder = "gpt2"
+cfg_version = 1
+ckpt_version = 1
+config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+device = get_target_device()
+
+# Load Dataset and DataLoader
+esc50_dataset = ClapDataset(config=config, kinds=["train", "val", "test"], datasets=["ESC50"])
+esc50_dataloader = DataLoader(esc50_dataset, batch_size=64, shuffle=False)
+
+# Load pretrained model
+clf = ClapAudioClassifier.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, clap_cfg_version=cfg_version, clf_ckpt_version=ckpt_version).to(device)
+
+acc = eval_fine_tuned_classification(model=clf, eval_loader=esc50_dataloader)
+
+print(f'ESC50 Accuracy: {acc}')
+```
+
 ## Datasets
 I implemented a `ClapDataset` that should be used for training and evaluation.
 For now, it only supports the [ClothoV2](https://doi.org/10.1109/ICASSP40776.2020.9052990), [AudioCaps](https://doi.org/10.18653/v1/N19-1011) and [ESC-50](https://doi.org/10.1145/2733373.2806390) datasets.
@@ -191,6 +280,8 @@ combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kinds=["val
 ## Results
 These performances were achieved by using this [configuration](clap/configs/clap_htsat-tiny_gpt2_v1.yml) and this [notebook](examples/training.ipynb).
 ClAP was briefly trained according to the aforementioned configuration on both AudioCaps and ClothoV2, employing feature fusion for longer audios and simple repeat padding for shorter audios.
+The fine-tuning hyperparameters can be found in the same configuration file.
+A singly fully connected linear layer was trained with the audio encoder for fine-tuning.
 
 Note: In order to use the pretrained audio encoder, you first have to download an official model checkpoint yourself and then change the absolut path accordingly.
 
@@ -218,6 +309,12 @@ Note: In order to use the pretrained audio encoder, you first have to download a
 |--------|:--------------:|
 | ESC-50 |     0.7465     |
 
+
+### Fine-Tuned Audio Classification
+
+|        | Top-1 Accuracy |
+|--------|:--------------:|
+| ESC-50 |     0.9341     |
 
 ## References
 > B. Elizalde, S. Deshmukh, M. A. Ismail and H. Wang, "CLAP Learning Audio Concepts from Natural Language Supervision," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5

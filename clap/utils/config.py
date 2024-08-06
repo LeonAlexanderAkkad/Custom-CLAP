@@ -7,7 +7,7 @@ import yaml
 from pathlib import Path
 
 
-BASE_PATH = Path(__file__).parent
+BASE_PATH = Path(__file__).parent.parent
 
 
 def create_clap_config(audio: dict, text: dict, projection: dict, training: dict):
@@ -78,17 +78,9 @@ def create_clap_config(audio: dict, text: dict, projection: dict, training: dict
 
 def load_clap_config(audio_encoder: str, text_encoder: str, version: str | int) -> dict:
     """Load configuration settings from a YAML configuration file based on encoder names and the specified version."""
-    config = None
-    config_paths = glob(os.path.join(BASE_PATH, "*.yml"))
-    for config_path in config_paths:
-        if audio_encoder in config_path and text_encoder in config_path and "v" + str(version) in config_path:
-            config = config_path
+    config_path = BASE_PATH / "configs" / f"clap_{audio_encoder}_{text_encoder}_v{version}.yml"
 
-    if config is None:
-        raise FileNotFoundError(f"Config file not found for {audio_encoder} and {text_encoder}."
-                                f"Available configs: {config_paths}")
-
-    with open(config, "r") as f:
+    with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
     return config

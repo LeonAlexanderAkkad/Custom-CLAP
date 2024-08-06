@@ -42,7 +42,6 @@ class ClapDataset(Dataset):
             config: dict,
             datasets: list[Union[Literal["AudioCaps"], Literal["Clotho"], Literal["ESC50"]]] | None = None,
             kinds: list[Union[Literal["train"], Literal["val"], Literal["test"]]] | None = None,
-            use_fusion: bool = True,
             download: bool = False
     ):
         """ Initializes the ClapDataset.
@@ -63,10 +62,11 @@ class ClapDataset(Dataset):
         self.config = config
         self.datasets = ["AudioCaps", "Clotho"] if datasets is None else datasets
         self.kinds = ["train"] if kinds is None else kinds
-        self.use_fusion = use_fusion
+
         self.download = download
         self.device = get_target_device()
         self.audio_cfg = config["audio"]
+        self.use_fusion = self.audio_cfg["use_fusion"]
         self.audio_processor = AudioProcessor(self.audio_cfg, self.device)
         self.audio, self.text = self.get_samples()
 
