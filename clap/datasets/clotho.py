@@ -78,6 +78,14 @@ class Clotho(AudioDataset):
         os.remove(zip_path)
 
         # Remove redundant directory
+        original_dir = filename.split("_")[-1][:-3]
+        for audio_file in os.listdir(os.path.join(audiodata_dir, original_dir)):
+            audio_file_path = os.path.join(audiodata_dir, original_dir, audio_file)
+            shutil.move(audio_file_path, audiodata_dir)
+
+        shutil.rmtree(os.path.join(audiodata_dir, original_dir))
+
+        # Remove redundant directory
         for root, dirs, files in os.walk(audiodata_dir):
             if root == audiodata_dir:
                 continue
