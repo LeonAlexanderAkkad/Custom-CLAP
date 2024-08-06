@@ -85,17 +85,6 @@ class Clotho(AudioDataset):
 
         shutil.rmtree(os.path.join(audiodata_dir, original_dir))
 
-        # Remove redundant directory
-        for root, dirs, files in os.walk(audiodata_dir):
-            if root == audiodata_dir:
-                continue
-            for file_name in files:
-                source_file = os.path.join(root, file_name)
-                destination_file = os.path.join(audiodata_dir, file_name)
-                shutil.move(source_file, destination_file)
-            # Remove the now empty nested directory
-            shutil.rmtree(root)
-
         print(f"Downloaded {kind} audio data to {audiodata_dir}")
 
     def __download_metadata(self, kind: str, metadata_path: str | Path):
