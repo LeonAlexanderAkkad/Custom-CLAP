@@ -39,9 +39,9 @@ class ESC50(AudioDataset):
         return audio_paths, torch.tensor(categories).to(get_target_device())
 
     def __download_dataset(self):
+        os.makedirs(DATASET_DIR_BASE, exist_ok=True)
         if not os.path.exists(DATASET_DIR_BASE / f"{self.kind}.csv"):
             # Download metadata, create directory and split the metadata into train, validation and test metadata
-            os.makedirs(DATASET_DIR_BASE, exist_ok=True)
             metadata_download_path = os.path.join(DATASET_DIR_BASE, "metadata.csv")
 
             self.__download_metadata(metadata_download_path)

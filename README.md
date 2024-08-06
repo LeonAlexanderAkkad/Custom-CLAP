@@ -35,7 +35,8 @@ pip install -e .
 [Training](#training-clap-on-audiocaps-and-clothov2) | [Fine-Tuning](#fine-tuning-clap-on-esc-50) | [Retrieval performance](#evaluating-the-retrieval-performance-of-clap-on-audiocaps-and-clothov2) | [Zero-Shot Audio Classification](#evaluating-the-zero-shot-performance-of-clap-on-the-esc-50-dataset) | [Fine-Tuned Audio Classification](#evaluating-the-fine-tuned-clap-audio-classifier-on-the-esc-50-dataset)
 
 This package can be used to train and evaluate a CLAP model with a pre-defined `ClapTrainer` class and the `SymmetricCrossEntropyLoss` on the AudioCaps and ClothoV2 dataset.
-Additionally, one can fine-tune a CLAP model using the implemented `ClaupAudioClassifier` on the ESC-50 dataset. 
+Additionally, one can fine-tune a CLAP model using the implemented `ClaupAudioClassifier` on the ESC-50 dataset.
+For logging, if needed, weights and biases can be used.
 For further insights into the `ClapDataset` used for training have a look at [Datasets](#Datasets).
 
 ### Training CLAP on AudioCaps and ClothoV2

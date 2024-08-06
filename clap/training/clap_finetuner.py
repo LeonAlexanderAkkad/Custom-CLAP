@@ -6,7 +6,7 @@ import numpy as np
 
 from tqdm import tqdm
 
-import wandb as wb
+import wandb
 
 import torch
 import torch.nn as nn
@@ -52,6 +52,8 @@ class ClapFinetuner:
         Metrics computed over test epochs.
     current_epoch : int
         Current epoch number.
+    enable_wandb_logging : bool (default False)
+        Whether to enable wandb logging.
 
     Methods
     -------
@@ -74,7 +76,8 @@ class ClapFinetuner:
             optimizer: Optimizer,
             loss_fn: nn.Module,
             epochs: int,
-            scheduler: LRScheduler
+            scheduler: LRScheduler,
+            enable_wandb_logging: bool = False
     ):
         """Initializes a ClapTrainer instance for training, validating, and testing a Clap model.
 
@@ -96,6 +99,8 @@ class ClapFinetuner:
             The number of epochs to train the model.
         scheduler : LRScheduler
             Learning rate scheduler to adjust the learning rate during training.
+        enable_wandb_logging : bool (default False)
+            Whether to enable wandb logging.
         """
 
         self.train_loader = train_loader
@@ -105,15 +110,17 @@ class ClapFinetuner:
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.scheduler = scheduler
+        self.enable_wandb_logging = enable_wandb_logging
         self.train_epoch_metrics = EpochClassificationMetrics()
         self.val_epoch_metrics = EpochClassificationMetrics()
         self.test_epoch_metrics = EpochClassificationMetrics()
         self.current_epoch = 0
         self.epochs = epochs
         self._device = get_target_device()
-        self._global_train_step = 0
-        self._global_val_step = 0
-        self._global_test_step = 0
+        if self.enable_wandb_logging:
+            self._global_train_step = 0
+            self._global_val_step = 0
+            self._global_test_step = 0
 
     def finetune_and_eval(
             self,
@@ -148,8 +155,10 @@ class ClapFinetuner:
         best_loss = None
         ckpt_path = Path(__file__).parent.parent / "checkpoints" / f"clf_{audio_encoder}_{text_encoder}_v{version}.ckpt"
         os.makedirs(ckpt_path.parent, exist_ok=True)
-        # Tell wandb to watch the model.
-        wb.watch(self.model, criterion=self.loss_fn, log="all", log_freq=10)
+
+        if self.enable_wandb_logging:
+            # Tell wandb to watch the model.
+            wandb.watch(self.model, criterion=self.loss_fn, log="all", log_freq=10)
 
         print("\nStarting to finetune Classifier")
         for _ in range(self.current_epoch, self.epochs):
@@ -162,15 +171,16 @@ class ClapFinetuner:
             self.train_epoch_metrics.update(train_metrics)
             self.val_epoch_metrics.update(val_metrics)
 
-            wb.log(
-                {
-                    "train/loss": train_metrics["avg_loss"],
-                    "train/accuracy": train_metrics["avg_accuracy"],
-                    "val/loss": val_metrics["avg_loss"],
-                    "val/accuracy": val_metrics["avg_accuracy"],
-                    "epoch": self.current_epoch
-                }
-            )
+            if self.enable_wandb_logging:
+                wandb.log(
+                    {
+                        "train/loss": train_metrics["avg_loss"],
+                        "train/accuracy": train_metrics["avg_accuracy"],
+                        "val/loss": val_metrics["avg_loss"],
+                        "val/accuracy": val_metrics["avg_accuracy"],
+                        "epoch": self.current_epoch
+                    }
+                )
 
             print(
                 f"\nEpoch: {str(self.current_epoch).zfill(len(str(self.epochs)))} || "
@@ -187,6 +197,10 @@ class ClapFinetuner:
                     # Get test metrics and update the epoch metrics
                     test_metrics = self.eval_model(test_set=True)
                     self.test_epoch_metrics.update(test_metrics)
+
+                    if self.enable_wandb_logging:
+                        # Necessary to work with model in jupyter notebook after training is done.
+                        wandb.unwatch(self.model)
 
                     print(
                         f"\nFinal loss: {test_metrics['avg_loss']} || "
@@ -219,8 +233,9 @@ class ClapFinetuner:
         test_metrics = self.eval_model(test_set=True)
         self.test_epoch_metrics.update(test_metrics)
 
-        # Necessary to work with model in jupyter notebook after training is done.
-        wb.unwatch(self.model)
+        if self.enable_wandb_logging:
+            # Necessary to work with model in jupyter notebook after training is done.
+            wandb.unwatch(self.model)
 
         print(
             f"\nFinal loss: {test_metrics['avg_loss']} || "
@@ -267,31 +282,26 @@ class ClapFinetuner:
                     accuracy=acc
                 )
 
-                # Log metrics
-                batch_metrics.update(
-                    loss=loss.item(),
-                    accuracy=acc
-                )
-
-                # Log batch loss and accuracy as well as predictions.
-                if test_set:
-                    wb.log(
-                        {
-                            "test/batch loss": loss.item(),
-                            "test/batch accuracy": acc,
-                            "test/step": self._global_test_step
-                        }
-                    )
-                    self._global_test_step += 1
-                else:
-                    wb.log(
-                        {
-                            "val/batch loss": loss.item(),
-                            "val/batch accuracy": acc,
-                            "val/step": self._global_val_step
-                        }
-                    )
-                    self._global_val_step += 1
+                if self.enable_wandb_logging:
+                    # Log batch loss and accuracy as well as predictions.
+                    if test_set:
+                        wandb.log(
+                            {
+                                "test/batch loss": loss.item(),
+                                "test/batch accuracy": acc,
+                                "test/step": self._global_test_step
+                            }
+                        )
+                        self._global_test_step += 1
+                    else:
+                        wandb.log(
+                            {
+                                "val/batch loss": loss.item(),
+                                "val/batch accuracy": acc,
+                                "val/step": self._global_val_step
+                            }
+                        )
+                        self._global_val_step += 1
 
         return batch_metrics.compute_average_metrics()
 
@@ -331,16 +341,17 @@ class ClapFinetuner:
             self.optimizer.step()
             self.scheduler.step()
 
-            # Log batch loss and accuracy.
-            wb.log(
-                {
-                    "train/batch loss": loss.item(),
-                    "train/batch accuracy": acc,
-                    "train/step": self._global_train_step
-                }
-            )
+            if self.enable_wandb_logging:
+                # Log batch loss and accuracy.
+                wandb.log(
+                    {
+                        "train/batch loss": loss.item(),
+                        "train/batch accuracy": acc,
+                        "train/step": self._global_train_step
+                    }
+                )
 
-            self._global_train_step += 1
+                self._global_train_step += 1
 
         return batch_metrics.compute_average_metrics()
 
@@ -356,7 +367,8 @@ class ClapFinetuner:
             train_loader: DataLoader,
             val_loader: DataLoader,
             test_loader: DataLoader,
-            epochs: int
+            epochs: int,
+            enable_wandb_logging: bool = False
     ) -> "ClapFinetuner":
         """Create an instance of ClapFinetuner from a checkpoint file (e.g., a ckpt file).
 
@@ -386,6 +398,8 @@ class ClapFinetuner:
             The data loader for the test dataset.
         epochs : int
             The total number of training epochs.
+        enable_wandb_logging : bool (default: False)
+            Whether to enable wandb logging.
 
         Returns
         -------
@@ -423,7 +437,8 @@ class ClapFinetuner:
         ...     train_loader=train_loader,
         ...     val_loader=val_loader,
         ...     test_loader=test_loader,
-        ...     epochs=epochs
+        ...     epochs=epochs,
+        ...     enable_wandb_logging=False
         ... )
 
         **Example 2: Handling errors**
@@ -441,7 +456,8 @@ class ClapFinetuner:
         ...         train_loader=train_loader,
         ...         val_loader=val_loader,
         ...         test_loader=test_loader,
-        ...         epochs=epochs
+        ...         epochs=epochs,
+        ...         enable_wandb_logging=False
         ...     )
         ... except FileNotFoundError:
         ...     print("Checkpoint file not found.")
@@ -477,7 +493,8 @@ class ClapFinetuner:
             optimizer=optimizer,
             scheduler=scheduler,
             loss_fn=loss_fn,
-            epochs=epochs
+            epochs=epochs,
+            enable_wandb_logging=enable_wandb_logging
         )
 
         # Set metrics and current epoch

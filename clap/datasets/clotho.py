@@ -42,9 +42,9 @@ class Clotho(AudioDataset):
         return audio_paths_expanded, captions
 
     def __download_dataset(self, kind: str, metadata_path: str | Path, audiodata_dir: str | Path):
+        os.makedirs(DATASET_DIR_BASE, exist_ok=True)
         if not os.path.exists(metadata_path):
             # Download metadata and create directory if necessary
-            os.makedirs(DATASET_DIR_BASE, exist_ok=True)
             self.__download_metadata(kind, metadata_path)
 
             # Split the captions to create new samples
