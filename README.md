@@ -26,9 +26,10 @@ pip install -e .
 ```
 
 ## Example Usage
-[Training](#training-clap-on-audiocaps-and-clothov2) | [Retrieval performance](#evaluating-the-retrieval-performance-of-clap-on-audiocaps-and-clothov2) | [Zero-Shot Audio Classification](#evaluating-the-zero-shot-performance-of-clap-on-the-esc-50-dataset)
+[Training](#training-clap-on-audiocaps-and-clothov2) | [Fine-Tuning](#fine-tuning-clap-on-esc-50) | [Retrieval performance](#evaluating-the-retrieval-performance-of-clap-on-audiocaps-and-clothov2) | [Zero-Shot Audio Classification](#evaluating-the-zero-shot-performance-of-clap-on-the-esc-50-dataset) | [Fine-Tuned Audio Classification](#evaluating-the-fine-tuned-clap-audio-classifier-on-the-esc-50-dataset)
 
-This package can be used to train and evaluate a clap model with a pre-defined `ClapTrainer` class and the `SymmetricCrossEntropyLoss`.
+This package can be used to train and evaluate a CLAP model with a pre-defined `ClapTrainer` class and the `SymmetricCrossEntropyLoss` on the AudioCaps and ClothoV2 dataset.
+Additionally, one can fine-tune a CLAP model using the implemented `ClaupAudioClassifier` on the ESC-50 dataset. 
 For further insights into the `ClapDataset` used for training have a look at [Datasets](#Datasets).
 
 ### Training CLAP on AudioCaps and ClothoV2
@@ -43,7 +44,7 @@ from torch import optim
 from clap import Clap
 from clap.datasets import ClapDataset
 from clap.training import ClapTrainer, create_scheduler, SymmetricCrossEntropyLoss
-from clap.utils import get_target_device, load_clap_config
+from clap.utils import get_target_device, load_clap_config, set_random_seed
 
 # Load config for audio processing and get target device
 audio_encoder = "htsat-tiny"
@@ -54,7 +55,7 @@ config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder
 device = get_target_device()
 
 # Load Datasets
-seed = ClapTrainer.set_random_seed(None)
+seed = set_random_seed(None)
 train_dataset = ClapDataset(config=config, kinds=["train"])
 val_dataset = ClapDataset(config=config, kinds=["val"])
 test_dataset = ClapDataset(config=config, kinds=["test"])
@@ -185,8 +186,8 @@ for name, score in clotho_metrics.items():
 ```
 
 ### Evaluating the Zero-Shot performance of CLAP on the ESC-50 dataset
-For Zero-Shot evaluation, I evaluate the trained model on the whole dataset and generate prompts from the classes and compute the similarity between the embeddings of these prompts and the audios.
-- Jupyter Notebook: [Zero-Shot classification Notebook](examples/zero_shot_classification.ipynb)
+For Zero-Shot evaluation, I evaluate the trained model on the whole dataset and generate prompts from the dataset classes and compute the similarity between the embeddings of these prompts and the audios.
+- Jupyter Notebook: [Zero-Shot Audio classification Notebook](examples/zero_shot_classification.ipynb)
 - Python script:
 
 ```python
@@ -205,7 +206,7 @@ config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder
 device = get_target_device()
 
 # Load Dataset and DataLoader
-esc50_dataset = ClapDataset(config=config, kinds=["train", "val", "test"], datasets=["ESC50"], use_fusion=True)
+esc50_dataset = ClapDataset(config=config, kinds=["train", "val", "test"], datasets=["ESC50"])
 esc50_dataloader = DataLoader(esc50_dataset, batch_size=64, shuffle=False)
 class_to_idx, _ = ClapDataset.load_esc50_class_mapping()
 
@@ -225,8 +226,10 @@ acc = eval_zero_shot_classification(model=model, eval_loader=esc50_dataloader, c
 print(f'ESC50 Accuracy {acc}')
 ```
 
-### Evaluating the Fine-Tuned CLAP audio classifier on the ESC-50 datset
-
+### Evaluating the Fine-Tuned CLAP audio classifier on the ESC-50 dataset
+In order to compare it to the Zero-Shot evaluation, I evaluated the fine-tuned classifier on the whole ESC-50 datset.
+- Jupyter Notebook: [Fine-Tuned Audio Classification Notebook](examples/fine-tuned_classification.ipynb)
+- Python script:
 
 ```python
 from torch.utils.data import DataLoader
