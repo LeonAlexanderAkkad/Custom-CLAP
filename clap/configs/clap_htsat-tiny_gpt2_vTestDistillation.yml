@@ -30,8 +30,9 @@ projection:
 training:
     learning_rate: 0.0001
     batch_size: 64
-    epochs: 5
-    seed: null
+    stage1_epochs: 20
+    stage2_epochs: 20
+    seed: 1871489380
 
 # AUDIO CLASSIFIER CONFIG
 classifier:

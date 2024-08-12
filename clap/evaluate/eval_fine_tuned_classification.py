@@ -1,11 +1,7 @@
-import numpy as np
-
 import torch
 from torch.utils.data import DataLoader
 
 from tqdm import tqdm
-
-from sklearn.metrics import accuracy_score
 
 from ..model import ClapAudioClassifier
 from ..training import ClapFinetuner, BatchClassificationMetrics
@@ -31,13 +27,18 @@ def eval_fine_tuned_classification(model: ClapAudioClassifier, eval_loader: Data
 
     batch_metrics = BatchClassificationMetrics()
 
+    # Compute predictions
+    predictions, targets = [], []
     with torch.no_grad():
         for _, target, audio in tqdm(eval_loader, total=len(eval_loader), desc="Evaluating Fine-Tuned Classification"):
-            # Compute predictions and accuracy
             prediction = model(audio)
-            acc = ClapFinetuner.compute_accuracy(prediction, target)
+            predictions.append(prediction)
+            targets.append(target)
 
-            # Update metrics
-            batch_metrics.update(accuracy=acc)
+    # Compute accuracy
+    acc = ClapFinetuner.compute_accuracy(prediction, target)
+
+    # Update metrics
+    batch_metrics.update(accuracy=acc)
 
     return batch_metrics.compute_average_metrics()["avg_accuracy"]

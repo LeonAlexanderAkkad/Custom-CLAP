@@ -40,9 +40,8 @@ For logging, if needed, weights and biases can be used.
 For further insights into the `ClapDataset` used for training have a look at [Datasets](#Datasets).
 
 ### Training CLAP on AudioCaps and ClothoV2
-For training, I employ the described loss from the paper, Adam optimizer and a learning rate scheduler that uses a warm-up and a cosine annealing phase.
-The exact configurations can be seen in the Training Notebook.
-- Jupyter Notebook: [Training Notebook](examples/training.ipynb)
+For training, I employ the described loss from the paper, Adam optimizer and a learning rate scheduler that uses a warm-up phase followed by a cosine annealing phase.
+- Jupyter Notebook: [Training Notebook](examples/staged_training.ipynb)
 - Python script:
 
 ```python
@@ -89,15 +88,14 @@ trainer = ClapTrainer(
     epochs=config["training"]["epochs"]
 )
 
-train_metrics, val_metrics, test_metrics = trainer.train_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=1, early_stopping=False)
+train_metrics, val_metrics, test_metrics = trainer.train_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=ckpt_version, early_stopping=False)
 ```
 
 ### Fine-Tuning CLAP on ESC-50
 For fine-tuning, I froze the text encoder and trained a single fully connected linear layer and the audio encoder on the ESC-50 dataset.
 The ESC-50 dataset was simply split in the following way: The first 4 folds were used as training, the final fold was split so that the validation set comprises 150 samples and the test set comprises 250 samples.
 I made sure that no samples from the same audio source ended up in different splits.
-The Adam optimizer with learning rate scheduling (30 steps warm-up stage, followed by cosine learning rate annealing) was employed.
-The exact configurations can be seen in the Fine-Tuning Notebook.
+Again, the Adam optimizer was used and a learning rate scheduler that uses a warm-up phase followed by a cosine annealing phase.
 - Jupyter Notebook: [Fine-Tuning Notebook](examples/finetuning.ipynb)
 - Python script:
 
@@ -147,7 +145,7 @@ trainer = ClapFinetuner(
     epochs=config["fine-tuning"]["epochs"]
 )
 
-train_metrics, val_metrics, test_metrics = trainer.finetune_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=1, early_stopping=False)
+train_metrics, val_metrics, test_metrics = trainer.finetune_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=ckpt_version, early_stopping=False)
 ```
 
 ### Evaluating the retrieval performance of CLAP on AudioCaps and ClothoV2
@@ -288,10 +286,11 @@ combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kinds=["val
 ```
 
 ## Results
-These performances were achieved by using this [configuration](clap/configs/clap_htsat-tiny_gpt2_v1.yml) and this [notebook](examples/training.ipynb).
+These performances were achieved by using this [configuration](clap/configs/clap_htsat-tiny_gpt2_v1.yml) and this [notebook](examples/staged_training.ipynb).
 ClAP was briefly trained according to the aforementioned configuration on both AudioCaps and ClothoV2, employing feature fusion for longer audios and simple repeat padding for shorter audios.
+For both training and fine-tuning, I used the Adam optimizer and a learning rate scheduler with a warm-up phase of 1000 and 31 steps respectively followed by a cosine annealing phase.
 The fine-tuning hyperparameters can be found in the same configuration file.
-A singly fully connected linear layer was trained with the audio encoder for fine-tuning.
+A single fully connected linear layer was trained with the audio encoder for fine-tuning.
 
 ### Retrieval performance
 
@@ -299,15 +298,15 @@ A singly fully connected linear layer was trained with the audio encoder for fin
 
 |                | Recall@1 | Recall@5 | Recall@10 | mAP@10 |
 |----------------|:--------:|:--------:|:---------:|:------:|
-| **Audio-Text** |  0.7211  |  0.9649  |  0.9880   | 0.8270 |
-| **Text-Audio** |  0.7360  |  0.9690  |  0.9909   | 0.8388 |
+| **Audio-Text** |  0.0768  |  0.2884  |  0.4355   | 0.1878 |
+| **Text-Audio** |  0.0629  |  0.3180  |  0.4556   | 0.1792 |
 
 #### ClothoV2:
 
 |                | Recall@1 | Recall@5 | Recall@10 | mAP@10 |
 |----------------|:--------:|:--------:|:---------:|:------:|
-| **Audio-Text** |  0.1562  |  0.6303  |  0.8283   | 0.3542 |
-| **Text-Audio** |  0.1402  |  0.6794  |  0.8545   | 0.3467 |
+| **Audio-Text** |  0.0239  |  0.1001  |  0.1577   | 0.0706 |
+| **Text-Audio** |  0.0218  |  0.1056  |  0.1736   | 0.0731 |
 
 
 ### Zero-Shot Audio classification
@@ -321,7 +320,7 @@ A singly fully connected linear layer was trained with the audio encoder for fin
 
 |        | Top-1 Accuracy |
 |--------|:--------------:|
-| ESC-50 |     0.9341     |
+| ESC-50 |     0.8750     |
 
 ## References
 > B. Elizalde, S. Deshmukh, M. A. Ismail and H. Wang, "CLAP Learning Audio Concepts from Natural Language Supervision," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5

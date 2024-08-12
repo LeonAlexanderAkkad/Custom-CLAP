@@ -50,6 +50,10 @@ class ClapTrainer:
         Metrics computed over test epochs.
     current_epoch : int
         Current epoch number.
+    distill_from : list[Clap] (default: None)
+            A list of Clap models to distill from when calculating the loss.
+    distill_weight : float (default: 0.0)
+        The weight of the distillation loss during training.
 
     Methods
     -------
@@ -61,6 +65,8 @@ class ClapTrainer:
         Compute Average Precision (AP) for a single query.
     compute_mean_average_precision(similarity, k=None)
         Compute mean Average Precision (mAP) or mean Average Precision at k (mAP@k).
+    compute_loss(similarity, text_embeddings, audio_embeddings)
+        Compute Loss for a similarity matrix and embeddings.
     set_random_seed(seed=None)
         Set the random seed for reproducibility.
     get_lr(optimizer)
@@ -72,6 +78,7 @@ class ClapTrainer:
     train_model()
         Trains a given model on the training data.
     """
+
     def __init__(
             self,
             train_loader: DataLoader,
@@ -82,7 +89,9 @@ class ClapTrainer:
             loss_fn: nn.Module,
             epochs: int,
             scheduler: LRScheduler,
-            enable_wandb_logging: bool = False
+            enable_wandb_logging: bool = False,
+            distill_from: list[Clap] = None,
+            distill_weight: float = 0.0
     ):
         """Initializes a ClapTrainer instance for training, validating, and testing a Clap model.
 
@@ -106,6 +115,10 @@ class ClapTrainer:
             Learning rate scheduler to adjust the learning rate during training.
         enable_wandb_logging : bool (default: False)
             Whether to enable wandb logging.
+        distill_from : list[Clap] (default: None)
+            A list of Clap models to distill from when calculating the loss.
+        distill_weight : float (default: 0.0)
+            The weight of the distillation loss during training.
         """
 
         self.train_loader = train_loader
@@ -121,6 +134,8 @@ class ClapTrainer:
         self.test_epoch_metrics = EpochRetrievalMetrics()
         self.current_epoch = 0
         self.epochs = epochs
+        self.distill_from = distill_from
+        self.distill_weight = distill_weight
         self._device = get_target_device()
         if self.enable_wandb_logging:
             self._global_train_step = 0
@@ -158,7 +173,8 @@ class ClapTrainer:
             Dictionaries for the train, validation and test average metrics computed during training and/or evaluation.
         """
         best_loss = None
-        ckpt_path = Path(__file__).parent.parent / "checkpoints" / f"clap_{audio_encoder}_{text_encoder}_v{version}.ckpt"
+        ckpt_path = Path(
+            __file__).parent.parent / "checkpoints" / f"clap_{audio_encoder}_{text_encoder}_v{version}.ckpt"
         os.makedirs(ckpt_path.parent, exist_ok=True)
 
         if self.enable_wandb_logging:
@@ -307,7 +323,9 @@ class ClapTrainer:
                 # Compute similarity matrix and loss
                 text_em, audio_em, _ = self.model(caption, audio)
                 similarity = self.model.compute_similarity(text_em, audio_em)
-                loss = self.loss_fn(similarity)
+
+                # Compute loss
+                loss = self.compute_loss(similarity, text_em, audio_em)
 
                 # Audio-to-Text retrieval
                 r1_a2t, r5_a2t, r10_a2t, map10_a2t, map_a2t = self.compute_retrieval_metrics(similarity)
@@ -392,7 +410,9 @@ class ClapTrainer:
             # Compute similarity matrix and loss
             text_em, audio_em, _ = self.model(caption, audio)
             similarity = self.model.compute_similarity(text_em, audio_em)
-            loss = self.loss_fn(similarity)
+
+            # Compute loss
+            loss = self.compute_loss(similarity, text_em, audio_em)
 
             # Audio-to-Text retrieval
             r1_a2t, r5_a2t, r10_a2t, map10_a2t, map_a2t = self.compute_retrieval_metrics(similarity)
@@ -443,6 +463,42 @@ class ClapTrainer:
 
         return batch_metrics.compute_average_metrics()
 
+    def compute_loss(
+            self,
+            similarity: torch.Tensor,
+            text_embeddings: torch.Tensor,
+            audio_embeddings: torch.Tensor
+    ) -> torch.Tensor:
+        """Computes the loss for a given similarity metrix and audio and text embeddings."""
+        # Get contrastive loss
+        if (1 - self.distill_weight) != 0:
+            audio_target = torch.arange(similarity.shape[0]).to(similarity.device)
+            text_target = audio_target
+            contrastive_loss = self.loss_fn(similarity, audio_target, text_target)
+        else:
+            contrastive_loss = 0
+
+        # Get distilled loss
+        if self.distill_from is not None and self.distill_weight > 0:
+            target = torch.mean(
+                torch.stack(
+                    [distill_model.compute_similarity(text_embeddings, audio_embeddings) for distill_model in
+                     self.distill_from]),
+                dim=0
+            ).to(self._device)
+
+            # Compute audio and text target probabilities
+            audio_target = target.softmax(dim=1)
+            text_target = target.T.softmax(dim=1)
+
+            distilled_loss = self.loss_fn(similarity, audio_target, text_target)
+        else:
+            distilled_loss = 0
+
+        loss = (1 - self.distill_weight) * contrastive_loss + self.distill_weight * distilled_loss
+
+        return loss
+
     @classmethod
     def from_ckpt(
             cls,
@@ -456,7 +512,9 @@ class ClapTrainer:
             val_loader: DataLoader,
             test_loader: DataLoader,
             epochs: int,
-            enable_wandb_logging: bool = False
+            enable_wandb_logging: bool = False,
+            distill_from: list[Clap] = None,
+            distill_weight: float = 0.0
     ) -> "ClapTrainer":
         """Create an instance of ClapTrainer from a checkpoint file (e.g., a ckpt file).
 
@@ -488,6 +546,10 @@ class ClapTrainer:
             The total number of training epochs.
         enable_wandb_logging : bool (default: False)
             Whether to enable wandb logging.
+        distill_from : list[Clap] (default: None)
+            A list of Clap models to distill from when calculating the loss.
+        distill_weight : float (default: 0.0)
+            The weight of the distillation loss during training.
 
         Returns
         -------
@@ -582,7 +644,9 @@ class ClapTrainer:
             scheduler=scheduler,
             loss_fn=loss_fn,
             epochs=epochs,
-            enable_wandb_logging=enable_wandb_logging
+            enable_wandb_logging=enable_wandb_logging,
+            distill_from=distill_from,
+            distill_weight=distill_weight
         )
 
         # Set metrics and current epoch

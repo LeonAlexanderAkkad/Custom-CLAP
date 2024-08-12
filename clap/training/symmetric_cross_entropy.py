@@ -27,7 +27,7 @@ class SymmetricCrossEntropyLoss(nn.Module):
         """Initializes the SymmetricCrossEntropyLoss module."""
         super().__init__()
 
-    def forward(self, similarity: torch.Tensor) -> torch.Tensor:
+    def forward(self, similarity: torch.Tensor, target_audio: torch.Tensor, target_text: torch.Tensor) -> torch.Tensor:
         """Computes the symmetric cross-entropy loss given a similarity matrix.
 
         Parameters
@@ -35,17 +35,21 @@ class SymmetricCrossEntropyLoss(nn.Module):
         similarity : torch.Tensor
             A 2D tensor of shape (N, N) representing the similarity scores
             between paired data (e.g., text and audio).
+        target_audio : torch.Tensor
+            A 2D tensor of shape (N, N) representing the target labels for the audios.
+        target_text : torch.Tensor
+            A 2D tensor of shape (N, N) representing the target labels for the texts.
 
         Returns
         -------
         torch.Tensor
             A scalar tensor representing the symmetric cross-entropy loss.
         """
-        # Compute Cross-entropy loss along the text axis
-        audio_loss = F.cross_entropy(similarity, torch.arange(similarity.shape[0]).to(similarity.device))
-
         # Compute Cross-entropy loss along the audio axis
-        text_loss = F.cross_entropy(similarity.T, torch.arange(similarity.shape[0]).to(similarity.device))
+        audio_loss = F.cross_entropy(similarity, target_audio)
+
+        # Compute Cross-entropy loss along the text axis
+        text_loss = F.cross_entropy(similarity.T, target_text)
 
         # Compute symmetric Cross-entropy loss
         return 0.5 * (text_loss + audio_loss)
