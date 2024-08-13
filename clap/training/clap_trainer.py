@@ -172,7 +172,6 @@ class ClapTrainer:
         tuple[dict[str, float], dict[str, float], dict[str, float]]
             Dictionaries for the train, validation and test average metrics computed during training and/or evaluation.
         """
-        best_loss = None
         ckpt_path = Path(
             __file__).parent.parent / "checkpoints" / f"clap_{audio_encoder}_{text_encoder}_v{version}.ckpt"
         os.makedirs(ckpt_path.parent, exist_ok=True)
@@ -264,8 +263,7 @@ class ClapTrainer:
             self.current_epoch += 1
 
             # Save the best model
-            if not best_loss or val_metrics["avg_loss"] < best_loss:
-                best_loss = val_metrics["avg_loss"]
+            if np.argmin(self.val_epoch_metrics.epoch_losses) == self.current_epoch-1:
                 torch.save({
                     "epoch": self.current_epoch,
                     "model": self.model.state_dict(),
@@ -471,9 +469,9 @@ class ClapTrainer:
     ) -> torch.Tensor:
         """Computes the loss for a given similarity metrix and audio and text embeddings."""
         # Get contrastive loss
-        if (1 - self.distill_weight) != 0:
+        if (1 - self.distill_weight) > 0:
             audio_target = torch.arange(similarity.shape[0]).to(similarity.device)
-            text_target = audio_target
+            text_target = torch.arange(similarity.shape[0]).to(similarity.device)
             contrastive_loss = self.loss_fn(similarity, audio_target, text_target)
         else:
             contrastive_loss = 0
@@ -656,6 +654,8 @@ class ClapTrainer:
 
         return trainer
 
+    # TODO: Fix metrics for clotho!
+    # TODO: Do not evaluate the metrics during training!
     @staticmethod
     def compute_recall_at_k(similarity: torch.Tensor, k: int) -> float:
         """Compute Recall@K for a given similarity matrix.

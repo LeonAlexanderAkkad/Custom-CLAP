@@ -38,7 +38,7 @@ def eval_zero_shot_classification(model: Clap, eval_loader: DataLoader, class_em
         similarity = model.compute_similarity(class_embeddings, audio_embeddings)
         pred = F.softmax(similarity.detach().cpu(), dim=1).numpy()
         predictions.append(pred)
-        targets.append(target)
+        targets.append(target.detach().cpu().numpy())
 
     # Compute Zero-Shot accuracy
     predictions = np.concatenate(predictions, axis=0)

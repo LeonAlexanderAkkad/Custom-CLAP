@@ -20,14 +20,16 @@ class SymmetricCrossEntropyLoss(nn.Module):
     -------
     >>> criterion = SymmetricCrossEntropyLoss()
     >>> similarity = torch.randn(32, 32)  # Example similarity matrix
-    >>> loss = criterion(similarity)
+    >>> audio_target = torch.arange(similarity.shape[0])
+    >>> text_target = audio_target
+    >>> loss = criterion(similarity, audio_target, text_target)
     >>> print(loss)
     """
     def __init__(self):
         """Initializes the SymmetricCrossEntropyLoss module."""
         super().__init__()
 
-    def forward(self, similarity: torch.Tensor, target_audio: torch.Tensor, target_text: torch.Tensor) -> torch.Tensor:
+    def forward(self, similarity: torch.Tensor, audio_target: torch.Tensor, text_target: torch.Tensor) -> torch.Tensor:
         """Computes the symmetric cross-entropy loss given a similarity matrix.
 
         Parameters
@@ -35,9 +37,9 @@ class SymmetricCrossEntropyLoss(nn.Module):
         similarity : torch.Tensor
             A 2D tensor of shape (N, N) representing the similarity scores
             between paired data (e.g., text and audio).
-        target_audio : torch.Tensor
+        audio_target : torch.Tensor
             A 2D tensor of shape (N, N) representing the target labels for the audios.
-        target_text : torch.Tensor
+        text_target : torch.Tensor
             A 2D tensor of shape (N, N) representing the target labels for the texts.
 
         Returns
@@ -46,10 +48,10 @@ class SymmetricCrossEntropyLoss(nn.Module):
             A scalar tensor representing the symmetric cross-entropy loss.
         """
         # Compute Cross-entropy loss along the audio axis
-        audio_loss = F.cross_entropy(similarity, target_audio)
+        audio_loss = F.cross_entropy(similarity, audio_target)
 
         # Compute Cross-entropy loss along the text axis
-        text_loss = F.cross_entropy(similarity.T, target_text)
+        text_loss = F.cross_entropy(similarity.T, text_target)
 
         # Compute symmetric Cross-entropy loss
         return 0.5 * (text_loss + audio_loss)

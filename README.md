@@ -178,8 +178,8 @@ clotho_loader = DataLoader(clotho_eval_dataset, batch_size=64, shuffle=False)
 clap = Clap.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, cfg_version=cfg_version, ckpt_version=ckpt_version).to(device)
 
 # Get metrics
-audio_caps_metrics = eval_retrieval(model=clap, test_loader=audio_caps_loader)
-clotho_metrics = eval_retrieval(model=clap, test_loader=clotho_loader)
+audio_caps_metrics = eval_retrieval(model=clap, eval_loader=audio_caps_loader)
+clotho_metrics = eval_retrieval(model=clap, eval_loader=clotho_loader)
 
 print("Audio Caps:\n")
 for name, score in audio_caps_metrics.items():

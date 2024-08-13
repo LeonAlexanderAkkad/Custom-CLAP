@@ -32,7 +32,7 @@ training:
     batch_size: 64
     stage1_epochs: 20
     stage2_epochs: 20
-    seed: 1871489380
+    seed: null
 
 # AUDIO CLASSIFIER CONFIG
 classifier:

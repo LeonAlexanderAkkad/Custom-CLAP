@@ -29,7 +29,7 @@ def eval_retrieval(model: Clap, eval_loader: DataLoader) -> dict[str, float]:
 
     # Compute embeddings for every caption
     text_embeddings = []
-    for _, text, _ in tqdm(eval_loader, desc="Computing text embeddings"):
+    for _, text, _ in tqdm(eval_loader, total=len(eval_loader), desc="Computing text embeddings"):
         text_embeddings.extend(model.get_text_embeddings(text))
 
     text_embeddings = torch.stack(text_embeddings, dim=0)
