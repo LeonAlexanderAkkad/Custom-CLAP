@@ -165,7 +165,7 @@ class ClapFinetuner:
 
             # Get epoch metrics
             train_metrics = self.finetune_model()
-            val_metrics = self.eval_model()
+            val_metrics = self.eval_model(self.val_loader)
 
             # Update epoch metrics
             self.train_epoch_metrics.update(train_metrics)
@@ -195,7 +195,7 @@ class ClapFinetuner:
                 if np.argmin(self.val_epoch_metrics.epoch_losses) <= self.current_epoch - 5:
                     print(f"\nEarly stopping on epoch {self.current_epoch}!")
                     # Get test metrics and update the epoch metrics
-                    test_metrics = self.eval_model(test_set=True)
+                    test_metrics = self.eval_model(self.test_loader, test_set=True)
                     self.test_epoch_metrics.update(test_metrics)
 
                     if self.enable_wandb_logging:
@@ -230,7 +230,7 @@ class ClapFinetuner:
             print("\n" + 100 * "=")
 
         # Get test metrics and update the epoch metrics
-        test_metrics = self.eval_model(test_set=True)
+        test_metrics = self.eval_model(self.test_loader, test_set=True)
         self.test_epoch_metrics.update(test_metrics)
 
         if self.enable_wandb_logging:
@@ -247,12 +247,14 @@ class ClapFinetuner:
                 self.val_epoch_metrics.compute_average_epoch_metrics(),
                 self.test_epoch_metrics.compute_average_epoch_metrics())
 
-    def eval_model(self, test_set: bool = False) -> dict[str, float]:
+    def eval_model(self, eval_loader: DataLoader, test_set: bool = False) -> dict[str, float]:
         """Evaluates a given model on test data.
 
         Parameters
         ----------
-        test_set: bool = False
+        eval_loader : DataLoader
+            Data loader for the evaluating the model.
+        test_set : bool = False
             Bool used to decide whether to log the model predictions as test or validation performance.
 
         Returns
@@ -267,7 +269,7 @@ class ClapFinetuner:
 
         # Compute the loss with torch.no_grad() as gradients aren't used.
         with torch.no_grad():
-            for _, target, audio in tqdm(self.test_loader, desc="Evaluating model on val/test set"):
+            for _, target, audio in tqdm(eval_loader, desc="Evaluating model on val/test set"):
 
                 # Compute predictions and loss
                 prediction = self.model(audio)

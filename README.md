@@ -298,15 +298,15 @@ A single fully connected linear layer was trained with the audio encoder for fin
 
 |                | Recall@1 | Recall@5 | Recall@10 | mAP@10 |
 |----------------|:--------:|:--------:|:---------:|:------:|
-| **Audio-Text** |  0.0768  |  0.2884  |  0.4355   | 0.1878 |
-| **Text-Audio** |  0.0629  |  0.3180  |  0.4556   | 0.1792 |
+| **Audio-Text** |  0.3872  |  0.6800  |  0.8018   | 0.2769 |
+| **Text-Audio** |  0.3180  |  0.6613  |  0.8068   | 0.4632 |
 
 #### ClothoV2:
 
 |                | Recall@1 | Recall@5 | Recall@10 | mAP@10 |
 |----------------|:--------:|:--------:|:---------:|:------:|
-| **Audio-Text** |  0.0239  |  0.1001  |  0.1577   | 0.0706 |
-| **Text-Audio** |  0.0218  |  0.1056  |  0.1736   | 0.0731 |
+| **Audio-Text** |  0.1378  |  0.2976  |  0.3933   | 0.0830 |
+| **Text-Audio** |  0.1085  |  0.2997  |  0.4145   | 0.1899 |
 
 
 ### Zero-Shot Audio classification

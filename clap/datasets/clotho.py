@@ -33,7 +33,7 @@ class Clotho(AudioDataset):
         audio_paths = sorted(glob(os.path.join(audiodata_dir, "*.wav")))
         captions = sum([metadata_df[metadata_df["file_name"] == os.path.basename(audio_path)]["caption"].tolist() for audio_path in audio_paths], [])
 
-        # Generate new lists so that each audio file really belongs to 5 captions
+        # Generate new lists so that there is a path for each of the 5 captions
         audio_paths_expanded = []
 
         for audio_path in audio_paths:

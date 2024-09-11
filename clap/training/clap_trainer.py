@@ -15,6 +15,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
 from .retrieval_metrics import BatchRetrievalMetrics, EpochRetrievalMetrics
+from ..evaluate import eval_retrieval
 from ..utils import get_target_device, load_clap_ckpt
 from ..model import Clap
 
@@ -164,7 +165,7 @@ class ClapTrainer:
             The text encoder used for encoding the text. This will be used for creating a checkpoint file.
         version : str | int
             The version used for creating a checkpoint file.
-        early_stopping: bool = False
+        early_stopping : bool = False
             Bool used to specify if early stopping should be applied.
 
         Returns
@@ -185,7 +186,7 @@ class ClapTrainer:
 
             # Get epoch metrics
             train_metrics = self.train_model()
-            val_metrics = self.eval_model()
+            val_metrics = self.eval_model(self.val_loader)
 
             # Update epoch metrics
             self.train_epoch_metrics.update(train_metrics)
@@ -199,23 +200,19 @@ class ClapTrainer:
                         "train/a2t/recall@5": train_metrics["avg_r5_a2t"],
                         "train/a2t/recall@10": train_metrics["avg_r10_a2t"],
                         "train/a2t/mAP@10": train_metrics["avg_map10_a2t"],
-                        "train/a2t/mAP": train_metrics["avg_map_a2t"],
                         "train/t2a/recall@1": train_metrics["avg_r1_t2a"],
                         "train/t2a/recall@5": train_metrics["avg_r5_t2a"],
                         "train/t2a/recall@10": train_metrics["avg_r10_t2a"],
                         "train/t2a/mAP@10": train_metrics["avg_map10_t2a"],
-                        "train/t2a/mAP": train_metrics["avg_map_t2a"],
                         "val/loss": val_metrics["avg_loss"],
                         "val/a2t/recall@1": val_metrics["avg_r1_a2t"],
                         "val/a2t/recall@5": val_metrics["avg_r5_a2t"],
                         "val/a2t/recall@10": val_metrics["avg_r10_a2t"],
                         "val/a2t/mAP@10": val_metrics["avg_map10_a2t"],
-                        "val/a2t/mAP": val_metrics["avg_map_a2t"],
                         "val/t2a/recall@1": val_metrics["avg_r1_t2a"],
                         "val/t2a/recall@5": val_metrics["avg_r5_t2a"],
                         "val/t2a/recall@10": val_metrics["avg_r10_t2a"],
                         "val/t2a/mAP@10": val_metrics["avg_map10_t2a"],
-                        "val/t2a/mAP": val_metrics["avg_map_t2a"],
                         "epoch": self.current_epoch
                     }
                 )
@@ -226,12 +223,10 @@ class ClapTrainer:
                 f"Validation loss: {val_metrics['avg_loss']:.4f} || "
                 f"Training A-T R@1: {train_metrics['avg_r1_a2t']:.4f} || "
                 f"Validation A-T R@1: {val_metrics['avg_r1_a2t']:.4f} || "
-                f"Training A-T mAp: {train_metrics['avg_map_a2t']:.4f} || "
-                f"Validation A-T mAP: {val_metrics['avg_map_a2t']:.4f} || "
                 f"Training T-A R@1: {train_metrics['avg_r1_t2a']:.4f} || "
                 f"Validation T-A R@1: {val_metrics['avg_r1_t2a']:.4f} || "
-                f"Training T-A mAP: {train_metrics['avg_map_t2a']:.4f} || "
-                f"Validation T-A mAP: {val_metrics['avg_map_t2a']:.4f}"
+                f"Training T-A mAP: {train_metrics['avg_map10_t2a']:.4f} || "
+                f"Validation A-T mAP: {val_metrics['avg_map10_a2t']:.4f}"
             )
 
             # Check for early stopping.
@@ -239,7 +234,7 @@ class ClapTrainer:
                 if np.argmin(self.val_epoch_metrics.epoch_losses) <= self.current_epoch - 5:
                     print(f"\nEarly stopping on epoch {self.current_epoch}!")
                     # Get test metrics and update the epoch metrics
-                    test_metrics = self.eval_model(test_set=True)
+                    test_metrics = self.eval_model(self.test_loader, test_set=True)
                     self.test_epoch_metrics.update(test_metrics)
 
                     if self.enable_wandb_logging:
@@ -250,8 +245,8 @@ class ClapTrainer:
                         f"\nFinal loss: {test_metrics['avg_loss']} || "
                         f"Final test T-A R@1: {test_metrics['avg_r1_t2a']:.4f} || "
                         f"Final test A-T R@1: {test_metrics['avg_r1_a2t']:.4f} || "
-                        f"Final test T-A mAP: {test_metrics['avg_map_t2a']:.4f} || "
-                        f"Final test A-T mAP: {test_metrics['avg_map_a2t']:.4f}"
+                        f"Final test T-A mAP: {test_metrics['avg_map10_t2a']:.4f} || "
+                        f"Final test A-T mAP: {test_metrics['avg_map10_a2t']:.4f}"
                     )
                     print("\nDone!")
 
@@ -263,7 +258,7 @@ class ClapTrainer:
             self.current_epoch += 1
 
             # Save the best model
-            if np.argmin(self.val_epoch_metrics.epoch_losses) == self.current_epoch-1:
+            if np.argmin(self.val_epoch_metrics.epoch_losses) == self.current_epoch - 1:
                 torch.save({
                     "epoch": self.current_epoch,
                     "model": self.model.state_dict(),
@@ -276,7 +271,7 @@ class ClapTrainer:
             print("\n" + 100 * "=")
 
         # Get test metrics and update the epoch metrics
-        test_metrics = self.eval_model(test_set=True)
+        test_metrics = self.eval_model(self.test_loader, test_set=True)
         self.test_epoch_metrics.update(test_metrics)
 
         if self.enable_wandb_logging:
@@ -287,8 +282,8 @@ class ClapTrainer:
             f"\nFinal loss: {test_metrics['avg_loss']} || "
             f"Final test T-A R@1: {test_metrics['avg_r1_t2a']:.4f} || "
             f"Final test A-T R@1: {test_metrics['avg_r1_a2t']:.4f} || "
-            f"Final test T-A mAP: {test_metrics['avg_map_t2a']:.4f} || "
-            f"Final test A-T mAP: {test_metrics['avg_map_a2t']:.4f}"
+            f"Final test T-A mAP: {test_metrics['avg_map10_t2a']:.4f} || "
+            f"Final test A-T mAP: {test_metrics['avg_map10_a2t']:.4f}"
         )
         print("\nDone!")
 
@@ -296,12 +291,14 @@ class ClapTrainer:
                 self.val_epoch_metrics.compute_average_epoch_metrics(),
                 self.test_epoch_metrics.compute_average_epoch_metrics())
 
-    def eval_model(self, test_set: bool = False) -> dict[str, float]:
+    def eval_model(self, eval_loader: DataLoader, test_set: bool = False) -> dict[str, float]:
         """Evaluates a given model on test data.
 
         Parameters
         ----------
-        test_set: bool = False
+        eval_loader : DataLoader
+            The data loader used to evaluate the model.
+        test_set : bool = False
             Bool used to decide whether to log the model predictions as test or validation performance.
 
         Returns
@@ -316,34 +313,18 @@ class ClapTrainer:
 
         # Compute the loss with torch.no_grad() as gradients aren't used.
         with torch.no_grad():
-            for _, caption, audio in tqdm(self.test_loader, desc="Evaluating model on val/test set"):
+            for _, caption, audio in tqdm(eval_loader, desc="Evaluating model on val/test set"):
 
                 # Compute similarity matrix and loss
                 text_em, audio_em, _ = self.model(caption, audio)
                 similarity = self.model.compute_similarity(text_em, audio_em)
 
                 # Compute loss
-                loss = self.compute_loss(similarity, text_em, audio_em)
-
-                # Audio-to-Text retrieval
-                r1_a2t, r5_a2t, r10_a2t, map10_a2t, map_a2t = self.compute_retrieval_metrics(similarity)
-
-                # Text-to-Audio retrieval
-                r1_t2a, r5_t2a, r10_t2a, map10_t2a, map_t2a = self.compute_retrieval_metrics(similarity.T)
+                loss = self.compute_eval_loss(similarity)
 
                 # Update metrics
                 batch_metrics.update(
-                    loss=loss.item(),
-                    r1_a2t=r1_a2t,
-                    r5_a2t=r5_a2t,
-                    r10_a2t=r10_a2t,
-                    map10_a2t=map10_a2t,
-                    map_a2t=map_a2t,
-                    r1_t2a=r1_t2a,
-                    r5_t2a=r5_t2a,
-                    r10_t2a=r10_t2a,
-                    map10_t2a=map10_t2a,
-                    map_t2a=map_t2a
+                    loss=loss.item()
                 )
 
                 if self.enable_wandb_logging:
@@ -352,16 +333,6 @@ class ClapTrainer:
                         wandb.log(
                             {
                                 "test/batch loss": loss.item(),
-                                "test/a2t/batch recall@1": r1_a2t,
-                                "test/a2t/batch recall@5": r5_a2t,
-                                "test/a2t/batch recall@10": r10_a2t,
-                                "test/a2t/batch mAP@10": map10_a2t,
-                                "test/a2t/batch mAP": map_a2t,
-                                "test/t2a/batch recall@1": r1_t2a,
-                                "test/t2a/batch recall@5": r5_t2a,
-                                "test/t2a/batch recall@10": r10_t2a,
-                                "test/t2a/batch mAP@10": map10_t2a,
-                                "test/t2a/batch mAP": map_t2a,
                                 "test/step": self._global_test_step
                             }
                         )
@@ -370,20 +341,23 @@ class ClapTrainer:
                         wandb.log(
                             {
                                 "val/batch loss": loss.item(),
-                                "val/a2t/batch recall@1": r1_a2t,
-                                "val/a2t/batch recall@5": r5_a2t,
-                                "val/a2t/batch recall@10": r10_a2t,
-                                "val/a2t/batch mAP@10": map10_a2t,
-                                "val/a2t/batch mAP": map_a2t,
-                                "val/t2a/batch recall@1": r1_t2a,
-                                "val/t2a/batch recall@5": r5_t2a,
-                                "val/t2a/batch recall@10": r10_t2a,
-                                "val/t2a/batch mAP@10": map10_t2a,
-                                "val/t2a/batch mAP": map_t2a,
                                 "val/step": self._global_val_step
                             }
                         )
                         self._global_val_step += 1
+
+            retrieval_metrics = eval_retrieval(self.model, eval_loader)
+
+            batch_metrics.update(
+                r1_a2t=retrieval_metrics["avg_r1_a2t"],
+                r5_a2t=retrieval_metrics["avg_r5_a2t"],
+                r10_a2t=retrieval_metrics["avg_r10_a2t"],
+                map10_a2t=retrieval_metrics["avg_map10_a2t"],
+                r1_t2a=retrieval_metrics["avg_r1_t2a"],
+                r5_t2a=retrieval_metrics["avg_r5_t2a"],
+                r10_t2a=retrieval_metrics["avg_r10_t2a"],
+                map10_t2a=retrieval_metrics["avg_map10_t2a"],
+            )
 
         return batch_metrics.compute_average_metrics()
 
@@ -410,27 +384,11 @@ class ClapTrainer:
             similarity = self.model.compute_similarity(text_em, audio_em)
 
             # Compute loss
-            loss = self.compute_loss(similarity, text_em, audio_em)
-
-            # Audio-to-Text retrieval
-            r1_a2t, r5_a2t, r10_a2t, map10_a2t, map_a2t = self.compute_retrieval_metrics(similarity)
-
-            # Text-to-Audio retrieval
-            r1_t2a, r5_t2a, r10_t2a, map10_t2a, map_t2a = self.compute_retrieval_metrics(similarity.T)
+            loss = self.compute_train_loss(similarity, text_em, audio_em)
 
             # Update metrics
             batch_metrics.update(
-                loss=loss.item(),
-                r1_a2t=r1_a2t,
-                r5_a2t=r5_a2t,
-                r10_a2t=r10_a2t,
-                map10_a2t=map10_a2t,
-                map_a2t=map_a2t,
-                r1_t2a=r1_t2a,
-                r5_t2a=r5_t2a,
-                r10_t2a=r10_t2a,
-                map10_t2a=map10_t2a,
-                map_t2a=map_t2a
+                loss=loss.item()
             )
 
             # Compute the gradients and perform the optimizer and scheduler step.
@@ -443,16 +401,6 @@ class ClapTrainer:
                 wandb.log(
                     {
                         "train/batch loss": loss.item(),
-                        "train/a2t/batch recall@1": r1_a2t,
-                        "train/a2t/batch recall@5": r5_a2t,
-                        "train/a2t/batch recall@10": r10_a2t,
-                        "train/a2t/batch mAP@10": map10_a2t,
-                        "train/a2t/batch mAP": map_a2t,
-                        "train/t2a/batch recall@1": r1_t2a,
-                        "train/t2a/batch recall@5": r5_t2a,
-                        "train/t2a/batch recall@10": r10_t2a,
-                        "train/t2a/batch mAP@10": map10_t2a,
-                        "train/t2a/batch mAP": map_t2a,
                         "train/step": self._global_train_step
                     }
                 )
@@ -461,13 +409,13 @@ class ClapTrainer:
 
         return batch_metrics.compute_average_metrics()
 
-    def compute_loss(
+    def compute_train_loss(
             self,
             similarity: torch.Tensor,
             text_embeddings: torch.Tensor,
             audio_embeddings: torch.Tensor
     ) -> torch.Tensor:
-        """Computes the loss for a given similarity metrix and audio and text embeddings."""
+        """Computes the training loss for a given similarity metrix and audio and text embeddings."""
         # Get contrastive loss
         if (1 - self.distill_weight) > 0:
             audio_target = torch.arange(similarity.shape[0]).to(similarity.device)
@@ -496,6 +444,16 @@ class ClapTrainer:
         loss = (1 - self.distill_weight) * contrastive_loss + self.distill_weight * distilled_loss
 
         return loss
+
+    def compute_eval_loss(
+            self,
+            similarity: torch.Tensor,
+    ) -> torch.Tensor:
+        audio_target = torch.arange(similarity.shape[0]).to(similarity.device)
+        text_target = torch.arange(similarity.shape[0]).to(similarity.device)
+        contrastive_loss = self.loss_fn(similarity, audio_target, text_target)
+
+        return contrastive_loss
 
     @classmethod
     def from_ckpt(
@@ -654,97 +612,57 @@ class ClapTrainer:
 
         return trainer
 
-    # TODO: Fix metrics for clotho!
-    # TODO: Do not evaluate the metrics during training!
     @staticmethod
-    def compute_recall_at_k(similarity: torch.Tensor, k: int) -> float:
-        """Compute Recall@K for a given similarity matrix.
+    def compute_a2t_metrics(similarity: torch.Tensor):
+        num_audios = similarity.shape[0]
+        sorted_sim = torch.argsort(similarity, descending=True)
 
-        Parameters
-        ----------
-        similarity : torch.Tensor,
-            Tensor of shape (N, N) where N is the number of samples.
-        k : int
-            The value of K for Recall@K.
+        ranks = np.zeros(num_audios)
+        ap10 = np.zeros(num_audios)
+        for i in range(num_audios):
+            # Initialize the range for the current index (5 consecutive elements)
+            current_idx = np.arange(5 * i, 5 * i + 5)
 
-        Returns
-        -------
-        float
-            The Recall@K for the A-T or T-A retrieval respectively.
-        """
+            # Get the ranks of the current indices in the sorted similarities
+            ranks_sim = np.where(np.isin(sorted_sim[i], current_idx))[0]
 
-        N = similarity.shape[0]
-        correct = 0
+            # Find the minimum rank for the current index
+            rank = ranks_sim.min() if ranks_sim.size > 0 else 1e20
 
-        for i in range(N):
-            # Get the indices of the top K similarities for each query
-            top_k_indices = torch.topk(similarity[i], k).indices
-            # Check if the correct pair is within the top K
-            if i in top_k_indices:
-                correct += 1
+            # Get ranks that are less than 10 and adjust their values for sim_map
+            sim_ap = ranks_sim[ranks_sim < 10] + 1
 
-        recall_at_k = correct / N
-        return recall_at_k
+            # Compute mAP@10 for the current index
+            if len(sim_ap) > 0:
+                ap10[i] = np.sum(np.arange(1, len(sim_ap) + 1) / sim_ap) / 5
+            else:
+                ap10[i] = 0.0
 
-    @staticmethod
-    def compute_average_precision(scores: np.ndarray, labels: np.ndarray) -> float:
-        """ Compute Average Precision (AP) for a single query."""
-        sorted_indices = np.argsort(-scores)
-        sorted_labels = labels[sorted_indices]
+            # Store the rank
+            ranks[i] = rank
 
-        # Compute precision for all k
-        cumulative_sum = np.cumsum(sorted_labels, 0)
-        precision_at_k = cumulative_sum / (np.arange(len(sorted_labels)) + 1)
+        # Compute metrics
+        r1 = len(np.where(ranks < 1)[0]) / len(ranks)
+        r5 = len(np.where(ranks < 5)[0]) / len(ranks)
+        r10 = len(np.where(ranks < 10)[0]) / len(ranks)
+        map10 = np.sum(ap10) / len(ranks)
 
-        relevant_indices = np.where(sorted_labels == 1)[0]
-        # Prevent 0 division
-        if len(relevant_indices) == 0:
-            return 0
-
-        # Compute average precision
-        ap = np.sum(precision_at_k[relevant_indices]) / len(relevant_indices)
-
-        return ap
+        return r1, r5, r10, map10
 
     @staticmethod
-    def compute_mean_average_precision(similarity: torch.Tensor, k: int = None):
-        """
-        Compute mean Average Precision (mAP) or mean Average Precision at k (mAP@k).
-        """
-        num_queries = similarity.shape[0]
-        similarity = similarity.cpu().detach().numpy()
+    def compute_t2a_metrics(similarity: torch.Tensor):
+        num_audios = similarity.shape[1]
+        sorted_sim = torch.argsort(similarity, descending=True)
 
-        # Create ground truth identity matrix
-        ground_truth = np.eye(num_queries)
+        ranks = np.zeros(5 * num_audios)
+        for audio_idx in range(num_audios):
+            for i in range(5):
+                ranks[5 * audio_idx + i] = np.where(sorted_sim[5 * audio_idx + i] == audio_idx)[0][0]
 
-        aps = []
-        for i in range(num_queries):
-            scores = similarity[i]
-            labels = ground_truth[i]
+        # Compute metrics
+        r1 = len(np.where(ranks < 1)[0]) / len(ranks)
+        r5 = len(np.where(ranks < 5)[0]) / len(ranks)
+        r10 = len(np.where(ranks < 10)[0]) / len(ranks)
+        map10 = np.sum(1 / (ranks[np.where(ranks < 10)[0]] + 1)) / len(ranks)
 
-            # Compute top_k map if specified
-            if k is not None:
-                sorted_indices = np.argsort(-scores)
-                top_k_indices = sorted_indices[:k]
-                scores = scores[top_k_indices]
-                labels = labels[top_k_indices]
-
-            # Compute average precision
-            ap = ClapTrainer.compute_average_precision(scores, labels)
-            aps.append(ap)
-
-        # Compute mean average precision
-        map_score = np.mean(aps)
-
-        return map_score
-
-    @staticmethod
-    def compute_retrieval_metrics(similarity: torch.Tensor):
-        """Compute retrieval metrics for a given similarity matrix."""
-        r1 = ClapTrainer.compute_recall_at_k(similarity, k=1)
-        r5 = ClapTrainer.compute_recall_at_k(similarity, k=5)
-        r10 = ClapTrainer.compute_recall_at_k(similarity, k=10)
-        map10 = ClapTrainer.compute_mean_average_precision(similarity, k=10)
-        map = ClapTrainer.compute_mean_average_precision(similarity)
-
-        return r1, r5, r10, map, map10
+        return r1, r5, r10, map10

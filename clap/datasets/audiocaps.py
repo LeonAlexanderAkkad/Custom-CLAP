@@ -32,9 +32,23 @@ class AudioCaps(AudioDataset):
 
         metadata_df = pd.read_csv(metadata_path)
 
-        audio_paths = sorted(glob(os.path.join(audiodata_dir, "*.wav")), key=lambda x: int(os.path.basename(x)[:-4]))
-        ids = [int(os.path.basename(path)[:-4]) for path in audio_paths]
-        captions = [metadata_df[metadata_df["audiocap_id"] == audiocap_id]["caption"].item() for audiocap_id in ids]
+        audio_paths = sorted(glob(os.path.join(audiodata_dir, "*.wav")))
+        if self.kind == "train":
+            # Each audio has 1 caption
+            captions = [metadata_df[metadata_df["youtube_id"] == os.path.basename(audio_path)[:-4]]["caption"].item() for audio_path in audio_paths]
+        else:
+            # Each audio has 5 captions
+            captions = sum(
+                [metadata_df[metadata_df["youtube_id"] == os.path.basename(audio_path)[:-4]]["caption"].tolist() for
+                 audio_path in audio_paths], [])
+
+            # Generate new lists so that there is a path for each of the 5 captions
+            audio_paths_expanded = []
+
+            for audio_path in audio_paths:
+                audio_paths_expanded.extend([audio_path] * 5)
+
+            audio_paths = audio_paths_expanded
 
         return audio_paths, captions
 
@@ -52,9 +66,8 @@ class AudioCaps(AudioDataset):
         metadata_df = pd.read_csv(metadata_path)
         # Copy metadata for removal of invalid samples
         metadata_df_new = metadata_df.copy()
-        for youtube_id, audiocap_id, start_time in zip(metadata_df["youtube_id"], metadata_df["audiocap_id"],
-                                                       metadata_df["start_time"]):
-            if not os.path.exists(os.path.join(audiodata_dir, f'{audiocap_id}.wav')):
+        for youtube_id, start_time in zip(metadata_df["youtube_id"], metadata_df["start_time"]):
+            if not os.path.exists(os.path.join(audiodata_dir, f'{youtube_id}.wav')):
                 successful_download = True
                 if not os.path.exists(os.path.join(download_dir, f'{youtube_id}.wav')):
                     successful_download = self.__download_audio(youtube_id, download_dir)
@@ -63,13 +76,13 @@ class AudioCaps(AudioDataset):
                     self.__extract_audio_segment(
                         os.path.join(download_dir, f'{youtube_id}.wav'),
                         start_time,
-                        os.path.join(audiodata_dir, f'{audiocap_id}.wav')
+                        os.path.join(audiodata_dir, f'{youtube_id}.wav')
                     )
                     try:
                         # Try to load wav file
-                        torchaudio.load(os.path.join(audiodata_dir, f'{audiocap_id}.wav'))
+                        torchaudio.load(os.path.join(audiodata_dir, f'{youtube_id}.wav'))
                     except RuntimeError:
-                        corrupted_sample = os.path.join(audiodata_dir, f'{audiocap_id}.wav')
+                        corrupted_sample = os.path.join(audiodata_dir, f'{youtube_id}.wav')
 
                 else:
                     # Remove unavailable samples from csv file
@@ -79,7 +92,7 @@ class AudioCaps(AudioDataset):
             # Remove corrupted samples
             if corrupted_sample is not None:
                 print(corrupted_sample)
-                metadata_df_new = metadata_df_new[metadata_df_new["audiocap_id"] != audiocap_id]
+                metadata_df_new = metadata_df_new[metadata_df_new["youtube_id"] != youtube_id]
                 metadata_df_new.to_csv(metadata_path, index=False)
                 print(f"Removing corrupted sample: {corrupted_sample}")
                 os.remove(corrupted_sample)

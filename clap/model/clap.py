@@ -95,7 +95,7 @@ class Clap(nn.Module):
         with torch.no_grad():
             return self.text_encoder(text)
 
-    def get_audio_embeddings(self, audio: list[str]):
+    def get_audio_embeddings(self, audio: dict[str, torch.Tensor]):
         """Returns the normalized audio embedding of the provided audio."""
         with torch.no_grad():
             return self.audio_encoder(audio)
