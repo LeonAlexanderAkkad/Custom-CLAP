@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from ..model import Clap
-from ..training import BatchRetrievalMetrics, ClapTrainer
+from ..metrics import BatchRetrievalMetrics
 
 
 def eval_retrieval(model: Clap, eval_loader: DataLoader) -> dict[str, float]:
@@ -48,10 +48,10 @@ def eval_retrieval(model: Clap, eval_loader: DataLoader) -> dict[str, float]:
         similarity = similarity[::5]
 
         # Audio-to-Text retrieval
-        r1_a2t, r5_a2t, r10_a2t, map10_a2t = ClapTrainer.compute_a2t_metrics(similarity)
+        r1_a2t, r5_a2t, r10_a2t, map10_a2t = BatchRetrievalMetrics.compute_a2t_metrics(similarity)
 
         # Text-to-Audio retrieval
-        r1_t2a, r5_t2a, r10_t2a, map10_t2a = ClapTrainer.compute_t2a_metrics(similarity.T)
+        r1_t2a, r5_t2a, r10_t2a, map10_t2a = BatchRetrievalMetrics.compute_t2a_metrics(similarity.T)
 
         # Log metrics
         batch_metrics.update(

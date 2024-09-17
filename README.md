@@ -45,31 +45,45 @@ For training, I employ the described loss from the paper, Adam optimizer and a l
 - Python script:
 
 ```python
+import wandb
+
 from torch.utils.data import DataLoader
 from torch import optim
+
 from clap import Clap
 from clap.datasets import ClapDataset
 from clap.training import ClapTrainer, create_scheduler, SymmetricCrossEntropyLoss
 from clap.utils import get_target_device, load_clap_config, set_random_seed
 
 # Load config for audio processing and get target device
-audio_encoder = "htsat-tiny"
-text_encoder = "gpt2"
-cfg_version = 1
-ckpt_version = 1
-config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+config_path = r"path/to/config.yml"
+ckpt_path = r"path/to/checkpoint.ckpt"
+config = load_clap_config(config_path=config_path)
 device = get_target_device()
+use_wandb = False
 
 # Load Datasets
-seed = set_random_seed(None)
-train_dataset = ClapDataset(config=config, kinds=["train"])
-val_dataset = ClapDataset(config=config, kinds=["val"])
-test_dataset = ClapDataset(config=config, kinds=["test"])
+seed = set_random_seed(config["training"]["seed"])
+dataset_paths = [r"path/to/audiocaps", r"path/to/clotho"] # Order matters
+train_dataset = ClapDataset(config=config, kinds=["train"], datasets=["AudioCaps", "Clotho"], datasets_paths=dataset_paths)
+val_dataset = ClapDataset(config=config, kinds=["val"], datasets=["AudioCaps", "Clotho"], datasets_paths=dataset_paths)
+test_dataset = ClapDataset(config=config, kinds=["test"], datasets=["AudioCaps", "Clotho"], datasets_paths=dataset_paths)
+
+# Initialize wandb
+if use_wandb:
+    wandb.init(
+        # Set the wandb project where this run will be logged
+        project="project",
+        name="name",
+        # Track hyperparameters
+        config=config
+    )
+    config = wandb.config
 
 # Define data loaders
 train_loader = DataLoader(train_dataset, batch_size=config["training"]["batch_size"], shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=config["training"]["batch_size"])
-test_loader = DataLoader(test_dataset, batch_size=config["training"]["batch_size"])
+val_loader = DataLoader(val_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
 
 # Define model, optimizer, scheduler and loss function
 clap = Clap(config).to(device)
@@ -88,7 +102,11 @@ trainer = ClapTrainer(
     epochs=config["training"]["epochs"]
 )
 
-train_metrics, val_metrics, test_metrics = trainer.train_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=ckpt_version, early_stopping=False)
+# Train model
+trainer.train_and_eval(ckpt_path, early_stopping=False)
+
+if use_wandb:
+    wandb.finish()
 ```
 
 ### Fine-Tuning CLAP on ESC-50
@@ -96,31 +114,46 @@ For fine-tuning, I froze the text encoder and trained a single fully connected l
 The ESC-50 dataset was simply split in the following way: The first 4 folds were used as training, the final fold was split so that the validation set comprises 150 samples and the test set comprises 250 samples.
 I made sure that no samples from the same audio source ended up in different splits.
 Again, the Adam optimizer was used and a learning rate scheduler that uses a warm-up phase followed by a cosine annealing phase.
-- Jupyter Notebook: [Fine-Tuning Notebook](examples/finetuning.ipynb)
+- Jupyter Notebook: [Fine-Tuning Notebook](examples/fine-tuning.ipynb)
 - Python script:
 
 ```python
+import wandb
+
 import torch
 from torch import optim
 from torch.utils.data import DataLoader
+
 from clap import Clap, ClapAudioClassifier
 from clap.training import create_scheduler, ClapFinetuner
 from clap.datasets import ClapDataset
 from clap.utils import get_target_device, load_clap_config, set_random_seed
 
 # Load config for audio processing and get target device
-audio_encoder = "htsat-tiny"
-text_encoder = "gpt2"
-cfg_version = 1
-ckpt_version = 2
-config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+config_path = r"path/to/config.yml"
+clap_ckpt_path = r"path/to/clap_checkpoint.ckpt"
+clf_ckpt_path = r"path/to/clf_checkpoint.ckpt"
+config = load_clap_config(config_path=config_path)
 device = get_target_device()
+use_wandb = False
 
 # Load Datasets
 seed = set_random_seed(None)
-train_dataset = ClapDataset(config=config, kinds=["train"], datasets=["ESC50"])
-val_dataset = ClapDataset(config=config, kinds=["val"], datasets=["ESC50"])
-test_dataset = ClapDataset(config=config, kinds=["test"], datasets=["ESC50"])
+dataset_paths = [r"C:\Users\leon\Documents\ML_Projects\Custom-CLAP\clap\datasets\esc50"]
+train_dataset = ClapDataset(config=config, kinds=["train"], datasets=["ESC50"], datasets_paths=dataset_paths)
+val_dataset = ClapDataset(config=config, kinds=["val"], datasets=["ESC50"], datasets_paths=dataset_paths)
+test_dataset = ClapDataset(config=config, kinds=["test"], datasets=["ESC50"], datasets_paths=dataset_paths)
+
+# Initialize wandb
+if use_wandb:
+    wandb.init(
+        # Set the wandb project where this run will be logged
+        project="project",
+        name="name",
+        # Track hyperparameters
+        config=config
+    )
+    config = wandb.config
 
 # Define data loaders
 train_loader = DataLoader(train_dataset, batch_size=config["fine-tuning"]["batch_size"], shuffle=True)
@@ -128,7 +161,7 @@ val_loader = DataLoader(val_dataset, batch_size=config["fine-tuning"]["batch_siz
 test_loader = DataLoader(test_dataset, batch_size=config["fine-tuning"]["batch_size"])
 
 # Define model, optimizer, scheduler and loss function
-clap = Clap.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, ckpt_version=ckpt_version, cfg_version=cfg_version)
+clap = Clap.from_ckpt(config_path=config_path, ckpt_path=clap_ckpt_path)
 clap_clf = ClapAudioClassifier(clap=clap, config=config).to(device)
 print(f"Number of parameters to train: {sum(p.numel() for p in clap_clf.parameters())}")
 optimizer = optim.Adam(clap.parameters(), lr=config["fine-tuning"]["learning_rate"])
@@ -142,10 +175,14 @@ trainer = ClapFinetuner(
     optimizer=optimizer,
     scheduler=scheduler,
     loss_fn=loss_fn,
-    epochs=config["fine-tuning"]["epochs"]
+    epochs=config["fine-tuning"]["epochs"],
+    enable_wandb_logging=use_wandb
 )
 
-train_metrics, val_metrics, test_metrics = trainer.finetune_and_eval(audio_encoder=audio_encoder, text_encoder=text_encoder, version=ckpt_version, early_stopping=False)
+trainer.finetune_and_eval(ckpt_path=clf_ckpt_path, early_stopping=False)
+
+if use_wandb:
+    wandb.finish()
 ```
 
 ### Evaluating the retrieval performance of CLAP on AudioCaps and ClothoV2
@@ -161,21 +198,19 @@ from clap.datasets import ClapDataset
 from clap.utils import get_target_device, load_clap_config
 
 # Load config for audio processing and get target device
-audio_encoder = "htsat-tiny"
-text_encoder = "gpt2"
-cfg_version = 1
-ckpt_version = 3
-config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+config_path = r"path/to/config.yml"
+ckpt_path = r"path/to/clap_checkpoint.ckpt"
+config = load_clap_config(config_path=config_path)
 device = get_target_device()
 
 # Initialize evaluation datasets and dataloaders
-audio_caps_eval_dataset = ClapDataset(config=config, datasets=["AudioCaps"], kinds=["test"])
-audio_caps_loader = DataLoader(audio_caps_eval_dataset, batch_size=64, shuffle=False)
-clotho_eval_dataset = ClapDataset(config=config, datasets=["Clotho"], kinds=["test"])
-clotho_loader = DataLoader(clotho_eval_dataset, batch_size=64, shuffle=False)
+audio_caps_eval_dataset = ClapDataset(config=config, datasets=["AudioCaps"], kinds=["test"], datasets_paths=[r"path/to/audiocaps"])
+audio_caps_loader = DataLoader(audio_caps_eval_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
+clotho_eval_dataset = ClapDataset(config=config, datasets=["Clotho"], kinds=["test"], datasets_paths=[r"path/to/clotho"])
+clotho_loader = DataLoader(clotho_eval_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
 
 # Load trained model
-clap = Clap.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, cfg_version=cfg_version, ckpt_version=ckpt_version).to(device)
+clap = Clap.from_ckpt(config_path=config_path, ckpt_path=ckpt_path).to(device)
 
 # Get metrics
 audio_caps_metrics = eval_retrieval(model=clap, eval_loader=audio_caps_loader)
@@ -192,7 +227,7 @@ for name, score in clotho_metrics.items():
 
 ### Evaluating the Zero-Shot performance of CLAP on the ESC-50 dataset
 For Zero-Shot evaluation, I evaluate the trained model on the whole dataset and generate prompts from the dataset classes and compute the similarity between the embeddings of these prompts and the audios.
-- Jupyter Notebook: [Zero-Shot Audio classification Notebook](examples/zero_shot_classification.ipynb)
+- Jupyter Notebook: [Zero-Shot Audio classification Notebook](examples/zero-shot_classification.ipynb)
 - Python script:
 
 ```python
@@ -203,20 +238,19 @@ from clap.datasets import ClapDataset
 from clap.utils import get_target_device, load_clap_config
 
 # Load config for audio processing and get target device
-audio_encoder = "htsat-tiny"
-text_encoder = "gpt2"
-cfg_version = 1
-ckpt_version = 3
-config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+config_path = r"path/to/config.yml"
+ckpt_path = r"path/to/clap_checkpoint.ckpt"
+config = load_clap_config(config_path=config_path)
 device = get_target_device()
 
 # Load Dataset and DataLoader
-esc50_dataset = ClapDataset(config=config, kinds=["train", "val", "test"], datasets=["ESC50"])
-esc50_dataloader = DataLoader(esc50_dataset, batch_size=64, shuffle=False)
-class_to_idx, _ = ClapDataset.load_esc50_class_mapping()
+esc50_path = r"C:\Users\leon\Documents\ML_Projects\Custom-CLAP\clap\datasets\esc50"
+esc50_dataset = ClapDataset(config=config, kinds=["train", "val", "test"], datasets=["ESC50"], datasets_paths=[esc50_path])
+esc50_dataloader = DataLoader(esc50_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
+class_to_idx, _ = ClapDataset.load_esc50_class_mapping(esc50_path)
 
 # Load pretrained model
-model = Clap.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, ckpt_version=ckpt_version, cfg_version=cfg_version).to(device)
+model = Clap.from_ckpt(config_path=config_path, ckpt_path=ckpt_path).to(device)
 
 # Generate prompts
 prompt = "This is the sound of "
@@ -244,19 +278,17 @@ from clap.datasets import ClapDataset
 from clap.utils import get_target_device, load_clap_config
 
 # Load config for audio processing and get target device
-audio_encoder = "htsat-tiny"
-text_encoder = "gpt2"
-cfg_version = 1
-ckpt_version = 1
-config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=cfg_version)
+config_path = r"path/to/config.yml"
+ckpt_path = r"path/to/clf_checkpoint.ckpt"
+config = load_clap_config(config_path=config_path)
 device = get_target_device()
 
 # Load Dataset and DataLoader
-esc50_dataset = ClapDataset(config=config, kinds=["train", "val", "test"], datasets=["ESC50"])
-esc50_dataloader = DataLoader(esc50_dataset, batch_size=64, shuffle=False)
+esc50_dataset = ClapDataset(config=config, kinds=["train", "val", "test"], datasets=["ESC50"], datasets_paths=[r"path/to/esc50"])
+esc50_dataloader = DataLoader(esc50_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
 
 # Load pretrained model
-clf = ClapAudioClassifier.from_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, clap_cfg_version=cfg_version, clf_ckpt_version=ckpt_version).to(device)
+clf = ClapAudioClassifier.from_ckpt(config_path=config_path, ckpt_path=ckpt_path).to(device)
 
 acc = eval_fine_tuned_classification(model=clf, eval_loader=esc50_dataloader)
 
@@ -268,7 +300,7 @@ I implemented a `ClapDataset` that should be used for training and evaluation.
 For now, it only supports the [ClothoV2](https://doi.org/10.1109/ICASSP40776.2020.9052990), [AudioCaps](https://doi.org/10.18653/v1/N19-1011) and [ESC-50](https://doi.org/10.1145/2733373.2806390) datasets.
 Each ClapDataset can load either train, validation, test or any combination of these three dataset splits, and it can include either AudioCaps, ClothoV2 or ESC-50 or any combination of these three.
 If need be, the datasets including the metadata will be downloaded to a specific directory.
-The user should not rename/move the configuration and checkpoint files, as there location is important for the `ClapDataset` and `Clap` respectively.
+
 
 Examples:
 
@@ -276,13 +308,14 @@ Examples:
 from clap.utils import load_clap_config
 from clap.datasets import ClapDataset
 
-audio_encoder = "htsat-tiny"
-text_encoder = "gpt2"
-version = 1
-config = load_clap_config(audio_encoder=audio_encoder, text_encoder=text_encoder, version=version)
-clotho_train_dataset = ClapDataset(datasets=["Clotho"], kinds=["train"], download=True, config=config)
-audiocaps_test_dataset = ClapDataset(datasets=["AudioCaps"], kinds=["test"], download=True, config=config)
-combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], kinds=["val"], download=True, config=config)
+config_path = r"path/to/config.yml"
+ckpt_path = r"path/to/clf_checkpoint.ckpt"
+config = load_clap_config(config_path=config_path)
+clotho_path = r"path/to/clotho"
+audiocaps_path = r"path/to/audiocaps"
+clotho_train_dataset = ClapDataset(datasets=["Clotho"], datasets_paths=[clotho_path], kinds=["train"], download=True, config=config)
+audiocaps_test_dataset = ClapDataset(datasets=["AudioCaps"], datasets_paths=[audiocaps_path], kinds=["test"], download=True, config=config)
+combined_val_dataset = ClapDataset(datasets=["AudioCaps", "Clotho"], datasets_paths=[audiocaps_path, clotho_path], kinds=["val"], download=True, config=config)
 ```
 
 ## Results

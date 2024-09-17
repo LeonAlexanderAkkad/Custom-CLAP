@@ -14,19 +14,18 @@ from .audio_dataset import AudioDataset
 
 
 BASE_URL = "https://zenodo.org/record/4783391/files/"
-DATASET_DIR_BASE = Path(__file__).parent / "clotho"
 
 
 class Clotho(AudioDataset):
     def get_samples(self):
-        metadata_path = os.path.join(DATASET_DIR_BASE, f"{self.kind}.csv")
-        audiodata_dir = os.path.join(DATASET_DIR_BASE, f"{self.kind}_audio")
+        metadata_path = os.path.join(self.base_path, f"{self.kind}.csv")
+        audiodata_dir = os.path.join(self.base_path, f"{self.kind}_audio")
 
         # Download metadata and audios if necessary
         if self.download:
-            self.__download_dataset("train", DATASET_DIR_BASE / "train.csv", DATASET_DIR_BASE / "train_audio")
-            self.__download_dataset("val", DATASET_DIR_BASE / "val.csv", DATASET_DIR_BASE / "val_audio")
-            self.__download_dataset("test", DATASET_DIR_BASE / "test.csv", DATASET_DIR_BASE / "test_audio")
+            self.__download_dataset("train", self.base_path / "train.csv", self.base_path / "train_audio")
+            self.__download_dataset("val", self.base_path / "val.csv", self.base_path / "val_audio")
+            self.__download_dataset("test", self.base_path / "test.csv", self.base_path / "test_audio")
 
         metadata_df = pd.read_csv(metadata_path)
 
@@ -42,7 +41,7 @@ class Clotho(AudioDataset):
         return audio_paths_expanded, captions
 
     def __download_dataset(self, kind: str, metadata_path: str | Path, audiodata_dir: str | Path):
-        os.makedirs(DATASET_DIR_BASE, exist_ok=True)
+        os.makedirs(self.base_path, exist_ok=True)
         if not os.path.exists(metadata_path):
             # Download metadata and create directory if necessary
             self.__download_metadata(kind, metadata_path)

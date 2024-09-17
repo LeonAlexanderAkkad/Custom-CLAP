@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 
 import torch
@@ -101,23 +103,17 @@ class Clap(nn.Module):
             return self.audio_encoder(audio)
 
     @classmethod
-    def from_ckpt(cls, audio_encoder: str, text_encoder: str, ckpt_version: str | int, cfg_version: str | int) -> "Clap":
+    def from_ckpt(cls, config_path: str | Path, ckpt_path: str | Path) -> "Clap":
         """Create an instance of Clap from a checkpoint file (e.g. a ckpt file).
 
-        This method searches for the appropriate configuration and checkpoint files
-        based on the provided `audio_encoder`, `text_encoder`, and `version` parameters.
-        It initializes a `Clap` instance using the found files.
+        It initializes a `Clap` instance using the found config and checkpoint files.
 
         Parameters
         ----------
-        audio_encoder : str
-            The name of the audio encoder to use.
-        text_encoder : str
-            The name of the text encoder to use.
-        ckpt_version : str or int
-            The version of the checkpoint to load.
-        cfg_version: str or int
-            The version of the config to use.
+        config_path : str | Path
+            The path to the checkpoint file.
+        ckpt_path : str | Path
+            The path to the checkpoint file.
 
         Returns
         -------
@@ -133,34 +129,26 @@ class Clap(nn.Module):
         --------
         Create a Clap instance from a specific checkpoint version:
 
-        >>> clap_instance = Clap.from_ckpt("cnn14", "distilroberta-base", 1, 1)
+        >>> clap_instance = Clap.from_ckpt("path/to/config.yml", "path/to/ckpt.ckpt")
 
-        This will search for a configuration file named `clap_cnn14_distilroberta-base_v1.yml`
-        and a checkpoint file named `clap_cnn14_distilroberta-base_v1.ckpt`.
-        If the files are found, it will initialize the Clap instance using these files.
+        If these files are found, it will initialize the Clap instance using them.
 
-        If no matching files are found, a `FileNotFoundError` will be raised:
-
-        >>> Clap.from_ckpt("nonexistent_audio_encoder", "nonexistent_text_encoder", 999, 999)
-        Traceback (most recent call last):
-            ...
-        FileNotFoundError: Config file not found for nonexistent_audio_encoder and nonexistent_text_encoder and v999.
-                           Available configs: [clap_cnn14_distilroberta-base_v1.yml, ...]
+        If no matching files are found, a `FileNotFoundError` will be raised.
 
         Notes
         -----
         - The method `load_clap_ckpt` is responsible for finding and loading the checkpoint file.
         - The method `load_clap_config` is used to find and load the configuration file.
         """
-        clap = cls.from_encoders(audio_encoder, text_encoder, cfg_version)
+        clap = cls.from_config_file(config_path)
 
-        ckpt = load_clap_ckpt(audio_encoder, text_encoder, ckpt_version)
+        ckpt = load_clap_ckpt(ckpt_path)
         clap.load_state_dict(ckpt["model"])
 
         return clap
 
     @classmethod
-    def from_encoders(cls, audio_encoder: str, text_encoder: str, version: str | int) -> "Clap":
+    def from_config_file(cls, config_path: str | Path) -> "Clap":
         """Create an instance of Clap from audio and text encoders as well as a config version.
 
         This method initializes a Clap instance based on the provided
@@ -168,12 +156,8 @@ class Clap(nn.Module):
 
         Parameters
         ----------
-        audio_encoder : str
-            The name of the audio encoder to use.
-        text_encoder : str
-            The name of the text encoder to use.
-        version: str or int
-            The version of the config to load.
+        config_path : str | Path
+            The path to the config file.
 
         Returns
         -------
@@ -187,17 +171,14 @@ class Clap(nn.Module):
 
         Examples
         --------
-        Create a Clap instance from specific audio and text encoders:
+        Create a Clap instance a given config file:
 
-        >>> clap_instance = Clap.from_encoders("cnn14", "distilroberta-base", 1)
-
-        This will search for a configuration file named `clap_cnn14_distilroberta-base_v1.yml`
-        and initialize the Clap instance using the configuration from this file.
+        >>> clap_instance = Clap.from_config_file("path/to/config.yml")
 
         Notes
         -----
         - The method `load_clap_config` is responsible for finding and loading the configuration file.
         """
 
-        config = load_clap_config(audio_encoder, text_encoder, version)
+        config = load_clap_config(config_path)
         return cls(config)

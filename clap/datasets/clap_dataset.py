@@ -24,6 +24,8 @@ class ClapDataset(Dataset):
     ----------
     config : dict or Path or str
         Configuration for the dataset.
+    datasets_paths : list[Union[str, Path]]
+        List of paths to datasets to be used.
     datasets : list[Union[Literal["AudioCaps"], Literal["Clotho"]]]
         List of datasets to be used.
     kinds : list[Union[Literal["train"], Literal["val"], Literal["test"]]]
@@ -40,6 +42,7 @@ class ClapDataset(Dataset):
     def __init__(
             self,
             config: dict,
+            datasets_paths: list[Union[str, Path]],
             datasets: list[Union[Literal["AudioCaps"], Literal["Clotho"], Literal["ESC50"]]] | None = None,
             kinds: list[Union[Literal["train"], Literal["val"], Literal["test"]]] | None = None,
             download: bool = False
@@ -50,16 +53,17 @@ class ClapDataset(Dataset):
         ----------
         config : dict or Path or str
             Configuration for loading audio data and processing.
+        datasets_paths : list[Union[str, Path]]
+            List of paths to datasets to be used.
         datasets : list[Union[Literal["AudioCaps"], Literal["Clotho"]]], optional
             List of datasets to be used, by default ["AudioCaps", "Clotho"].
         kinds : Literal["train", "val", "test"], optional
             Type of dataset split, by default "train".
-        use_fusion : bool, optional
-            Whether to use fusion processing for audio, by default True.
         download : bool, optional
             Whether to download the datasets if not available, by default False.
         """
         self.config = config
+        self.datasets_paths = datasets_paths
         self.datasets = ["AudioCaps", "Clotho"] if datasets is None else datasets
         self.kinds = ["train"] if kinds is None else kinds
 
@@ -119,9 +123,9 @@ class ClapDataset(Dataset):
         data = []
         captions = []
 
-        for dataset_name in self.datasets:
+        for i, dataset_name in enumerate(self.datasets):
             for kind in self.kinds:
-                audio_dataset = AVAILABLE_DATASETS[dataset_name](kind, self.download)
+                audio_dataset = AVAILABLE_DATASETS[dataset_name](self.datasets_paths[i], kind, self.download)
 
                 data.extend(audio_dataset.audio)
                 captions.extend(audio_dataset.text)
@@ -144,9 +148,9 @@ class ClapDataset(Dataset):
         return True
 
     @staticmethod
-    def load_esc50_class_mapping() -> tuple[dict[str, int], dict[str, str]]:
+    def load_esc50_class_mapping(esc50_path: str | Path) -> tuple[dict[str, int], dict[str, str]]:
         """Loads the ESC50 class mapping (i.e. class to idx and idx to class mappings)."""
-        class_to_idx = json.load(open(Path(__file__).parent / "esc50" / "class_to_idx.json", "r"))
-        idx_to_class = json.load(open(Path(__file__).parent / "esc50" / "idx_to_class.json", "r"))
+        class_to_idx = json.load(open(Path(esc50_path) / "class_to_idx.json", "r"))
+        idx_to_class = json.load(open(Path(esc50_path) / "idx_to_class.json", "r"))
 
         return class_to_idx, idx_to_class

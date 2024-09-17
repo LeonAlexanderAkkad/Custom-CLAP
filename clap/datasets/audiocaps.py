@@ -16,19 +16,18 @@ from glob import glob
 
 
 BASE_URL = "https://raw.githubusercontent.com/cdjkim/audiocaps/master/dataset/"
-DATASET_DIR_BASE = Path(__file__).parent / "audiocaps"
 
 
 class AudioCaps(AudioDataset):
     def get_samples(self):
-        metadata_path = os.path.join(DATASET_DIR_BASE, f"{self.kind}.csv")
-        audiodata_dir = os.path.join(DATASET_DIR_BASE, f"{self.kind}_audio")
+        metadata_path = os.path.join(self.base_path, f"{self.kind}.csv")
+        audiodata_dir = os.path.join(self.base_path, f"{self.kind}_audio")
 
         # Download metadata and audios if necessary
         if self.download:
-            self.__download_dataset(DATASET_DIR_BASE / "train.csv", DATASET_DIR_BASE / "train_audio")
-            self.__download_dataset(DATASET_DIR_BASE / "val.csv", DATASET_DIR_BASE / "val_audio")
-            self.__download_dataset(DATASET_DIR_BASE / "test.csv", DATASET_DIR_BASE / "test_audio")
+            self.__download_dataset(self.base_path / "train.csv", self.base_path / "train_audio")
+            self.__download_dataset(self.base_path / "val.csv", self.base_path / "val_audio")
+            self.__download_dataset(self.base_path / "test.csv", self.base_path / "test_audio")
 
         metadata_df = pd.read_csv(metadata_path)
 
@@ -53,7 +52,7 @@ class AudioCaps(AudioDataset):
         return audio_paths, captions
 
     def __download_dataset(self, metadata_path: str | Path, audiodata_dir: str | Path):
-        os.makedirs(DATASET_DIR_BASE, exist_ok=True)
+        os.makedirs(self.base_path, exist_ok=True)
         if not os.path.exists(metadata_path):
             # Download metadata and create directory if necessary
             self.__download_metadata(metadata_path)
@@ -61,7 +60,7 @@ class AudioCaps(AudioDataset):
         corrupted_sample = None
         # Download audios and create directories if necessary
         os.makedirs(audiodata_dir, exist_ok=True)
-        download_dir = os.path.join(DATASET_DIR_BASE, "full_audios")
+        download_dir = os.path.join(self.base_path, "full_audios")
         os.makedirs(download_dir, exist_ok=True)
         metadata_df = pd.read_csv(metadata_path)
         # Copy metadata for removal of invalid samples

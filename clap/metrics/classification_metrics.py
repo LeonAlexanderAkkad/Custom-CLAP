@@ -1,5 +1,11 @@
 from dataclasses import dataclass, field
 
+import torch
+
+import numpy as np
+
+from sklearn.metrics import accuracy_score
+
 
 @dataclass
 class BatchClassificationMetrics:
@@ -9,11 +15,13 @@ class BatchClassificationMetrics:
 
     def update(
             self,
-            loss: float = 0,
-            accuracy: float = 0,
+            loss: float = None,
+            accuracy: float = None
     ):
-        self.batch_losses.append(loss)
-        self.batch_accuracy.append(accuracy)
+        if loss is not None:
+            self.batch_losses.append(loss)
+        if accuracy is not None:
+            self.batch_accuracy.append(accuracy)
 
     def compute_average_metrics(self) -> dict[str, float]:
         def __mean(values):
@@ -23,6 +31,16 @@ class BatchClassificationMetrics:
             "avg_loss": __mean(self.batch_losses),
             "avg_accuracy": __mean(self.batch_accuracy)
         }
+
+    @staticmethod
+    def compute_accuracy(predictions: torch.Tensor, targets: torch.Tensor) -> float:
+        """Computes the accuracy of the audio classification task."""
+        predictions = predictions.detach().cpu().numpy()
+        targets = targets.detach().cpu().numpy()
+        predictions = np.argmax(predictions, axis=1)
+        acc = accuracy_score(targets, predictions)
+
+        return acc
 
 
 @dataclass

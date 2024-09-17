@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from ..model import ClapAudioClassifier
-from ..training import ClapFinetuner, BatchClassificationMetrics
+from ..metrics import BatchClassificationMetrics
 
 
 def eval_fine_tuned_classification(model: ClapAudioClassifier, eval_loader: DataLoader) -> float:
@@ -36,7 +36,7 @@ def eval_fine_tuned_classification(model: ClapAudioClassifier, eval_loader: Data
             targets.append(target)
 
     # Compute accuracy
-    acc = ClapFinetuner.compute_accuracy(prediction, target)
+    acc = BatchClassificationMetrics.compute_accuracy(prediction, target)
 
     # Update metrics
     batch_metrics.update(accuracy=acc)

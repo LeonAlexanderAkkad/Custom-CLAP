@@ -14,9 +14,8 @@ from torch.utils.data import DataLoader
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from sklearn.metrics import accuracy_score
 
-from .classification_metrics import BatchClassificationMetrics, EpochClassificationMetrics
+from ..metrics import BatchClassificationMetrics, EpochClassificationMetrics
 from ..utils import get_target_device, load_clf_ckpt
 from ..model import ClapAudioClassifier
 
@@ -124,26 +123,20 @@ class ClapFinetuner:
 
     def finetune_and_eval(
             self,
-            audio_encoder: str,
-            text_encoder: str,
-            version: str | int,
+            ckpt_path: str | Path,
             early_stopping: bool = False
     ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
         """Optimizes a given model for a number of epochs and saves the best model.
 
         The function computes both the defined loss and metrics like Recall@K and mAP@K for A-T and T-A respectively.
-        Depending on the best loss on the validation data, the best model is then saved to the specified file.
+        Depending on the loss on the validation data, the best model is then saved to the specified file.
         Moreover, wandb is utilized in order to monitor the training process.
         Finally, a scheduling of the learning rate is utilized as well.
 
         Parameters
         ----------
-        audio_encoder : str
-            The audio encoder used for encoding the audio. This will be used for creating a checkpoint file.
-        text_encoder : str
-            The text encoder used for encoding the text. This will be used for creating a checkpoint file.
-        version : str | int
-            The version used for creating a checkpoint file.
+        ckpt_path : str | Path
+            The path to the checkpoint file where the trained model will be saved to.
         early_stopping: bool = False
             Bool used to specify if early stopping should be applied.
 
@@ -152,9 +145,7 @@ class ClapFinetuner:
         tuple[dict[str, float], dict[str, float], dict[str, float]]
             Dictionaries for the train, validation and test average metrics computed during training and/or evaluation.
         """
-        best_loss = None
-        ckpt_path = Path(__file__).parent.parent / "checkpoints" / f"clf_{audio_encoder}_{text_encoder}_v{version}.ckpt"
-        os.makedirs(ckpt_path.parent, exist_ok=True)
+        os.makedirs(Path(ckpt_path).parent, exist_ok=True)
 
         if self.enable_wandb_logging:
             # Tell wandb to watch the model.
@@ -216,8 +207,7 @@ class ClapFinetuner:
             self.current_epoch += 1
 
             # Save the best model
-            if not best_loss or val_metrics["avg_loss"] < best_loss:
-                best_loss = val_metrics["avg_loss"]
+            if np.argmin(self.val_epoch_metrics.epoch_losses) == self.current_epoch - 1:
                 torch.save({
                     "epoch": self.current_epoch,
                     "model": self.model.state_dict(),
@@ -276,7 +266,7 @@ class ClapFinetuner:
                 loss = self.loss_fn(prediction, target)
 
                 # Compute accuracy
-                acc = self.compute_accuracy(prediction, target)
+                acc = BatchClassificationMetrics.compute_accuracy(prediction, target)
 
                 # Update metrics
                 batch_metrics.update(
@@ -330,7 +320,7 @@ class ClapFinetuner:
             loss = self.loss_fn(prediction, target)
 
             # Compute accuracy
-            acc = self.compute_accuracy(prediction, target)
+            acc = BatchClassificationMetrics.compute_accuracy(prediction, target)
 
             # Log metrics
             batch_metrics.update(
@@ -360,10 +350,8 @@ class ClapFinetuner:
     @classmethod
     def from_ckpt(
             cls,
-            audio_encoder: str,
-            text_encoder: str,
-            clap_cfg_version: str | int,
-            clf_ckpt_version: str | int,
+            config_path: str | Path,
+            ckpt_path: str | Path,
             optimizer: Optimizer,
             scheduler: LRScheduler,
             train_loader: DataLoader,
@@ -380,14 +368,10 @@ class ClapFinetuner:
 
         Parameters
         ----------
-        audio_encoder : str
-            The name of the audio encoder to use.
-        text_encoder : str
-            The name of the text encoder to use.
-        clap_cfg_version : str | int
-            The version of the clap config file to load.
-        clf_ckpt_version : str or int
-            The version of the classifier checkpoint to load.
+        config_path : str | Path
+            Path to the config file.
+        ckpt_path : str | Path
+            Path to the checkpoint file.
         optimizer : Optimizer
             The optimizer to use for training.
         scheduler : LRScheduler
@@ -417,12 +401,10 @@ class ClapFinetuner:
 
         Examples
         --------
-        **Example 1: Initializing with encoders and version**
+        **Example 1: Initializing correct paths**
 
-        >>> audio_encoder = "cnn14"
-        >>> text_encoder = "distilroberta-base"
-        >>> cfg_version = 1
-        >>> ckpt_version = 1
+        >>> config_path = "path/to/config.yml"
+        >>> ckpt_path = "path/to/checkpoint.ckpt"
         >>> optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         >>> scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
         >>> train_loader = torch.utils.data.DataLoader(...)
@@ -430,10 +412,8 @@ class ClapFinetuner:
         >>> test_loader = torch.utils.data.DataLoader(...)
         >>> epochs = 100
         >>> trainer = ClapFinetuner.from_ckpt(
-        ...     audio_encoder=audio_encoder,
-        ...     text_encoder=text_encoder,
-        ...     clap_cfg_version=cfg_version,
-        ...     clf_ckpt_version=ckpt_version,
+        ...     config_path=config_path,
+        ...     ckpt_path=ckpt_path,
         ...     optimizer=optimizer,
         ...     scheduler=scheduler,
         ...     train_loader=train_loader,
@@ -449,10 +429,8 @@ class ClapFinetuner:
 
         >>> try:
         ...     trainer = ClapFinetuner.from_ckpt(
-        ...         audio_encoder="invalid_audio_encoder",
-        ...         text_encoder="invalid_text_encoder",
-        ...         cfg_version=999,
-        ...         ckpt_version=999,
+        ...         config_path="invalid/path/to/config.yml",
+        ...         ckpt_path="invalid/path/to/checkpoint.ckpt",
         ...         optimizer=optimizer,
         ...         scheduler=scheduler,
         ...         train_loader=train_loader,
@@ -472,15 +450,10 @@ class ClapFinetuner:
         - The method `Clap.from_ckpt` is used to load the Clap model from the checkpoint.
         """
         # Load model with specified encoder and version
-        model = ClapAudioClassifier.from_ckpt(
-            audio_encoder=audio_encoder,
-            text_encoder=text_encoder,
-            clap_cfg_version=clap_cfg_version,
-            clf_ckpt_version=clf_ckpt_version
-        ).to(get_target_device())
+        model = ClapAudioClassifier.from_ckpt(config_path, ckpt_path).to(get_target_device())
 
         # Load metrics and other hyperparameters
-        ckpt = load_clf_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, version=clf_ckpt_version)
+        ckpt = load_clf_ckpt(ckpt_path)
         epoch = ckpt["epoch"]
         train_metrics = ckpt["train_metrics"]
         val_metrics = ckpt["val_metrics"]
@@ -505,12 +478,3 @@ class ClapFinetuner:
         trainer.current_epoch = epoch
 
         return trainer
-
-    @staticmethod
-    def compute_accuracy(predictions: torch.Tensor, targets: torch.Tensor) -> float:
-        predictions = predictions.detach().cpu().numpy()
-        targets = targets.detach().cpu().numpy()
-        predictions = np.argmax(predictions, axis=1)
-        acc = accuracy_score(targets, predictions)
-
-        return acc

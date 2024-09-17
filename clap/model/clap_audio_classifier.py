@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 from torch import nn
 
@@ -63,34 +65,28 @@ class ClapAudioClassifier(nn.Module):
     @classmethod
     def from_ckpt(
             cls,
-            audio_encoder: str,
-            text_encoder: str,
-            clap_cfg_version: str | int,
-            clf_ckpt_version: str | int
+            config_path: str | Path,
+            ckpt_path: str | Path,
     ) -> 'ClapAudioClassifier':
         """Create an instance of ClapAudioClassifier from a checkpoint.
 
         Parameters
         ----------
-        audio_encoder : str
-            Name of the audio encoder used in the checkpoint.
-        text_encoder : str
-            Name of the text encoder used in the checkpoint.
-        clap_cfg_version : str or int
-            Version identifier for the CLAP configuration file.
-        clf_ckpt_version : str or int
-            Version identifier for the classifier checkpoint file.
+        config_path : str | Path
+            The path to the clap config file.
+        ckpt_path : str | Path
+            The path to the checkpoint path.
 
         Returns
         -------
         ClapAudioClassifier
             An instance of the ClapAudioClassifier class loaded with the specified checkpoint.
         """
-        config = load_clap_config(audio_encoder, text_encoder, clap_cfg_version)
+        config = load_clap_config(config_path)
         clap = Clap(config)
 
         clf = cls(clap, config)
-        ckpt = load_clf_ckpt(audio_encoder, text_encoder, clf_ckpt_version)
+        ckpt = load_clf_ckpt(ckpt_path)
 
         clf.load_state_dict(ckpt["model"])
 

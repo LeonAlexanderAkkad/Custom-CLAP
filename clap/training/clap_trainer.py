@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from .retrieval_metrics import BatchRetrievalMetrics, EpochRetrievalMetrics
+from ..metrics import BatchRetrievalMetrics, EpochRetrievalMetrics
 from ..evaluate import eval_retrieval
 from ..utils import get_target_device, load_clap_ckpt
 from ..model import Clap
@@ -145,26 +145,20 @@ class ClapTrainer:
 
     def train_and_eval(
             self,
-            audio_encoder: str,
-            text_encoder: str,
-            version: str | int,
+            ckpt_path: str | Path,
             early_stopping: bool = False
     ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
         """Optimizes a given model for a number of epochs and saves the best model.
 
         The function computes both the defined loss and metrics like Recall@K and mAP@K for A-T and T-A respectively.
-        Depending on the best loss on the validation data, the best model is then saved to the specified file.
+        Depending on the loss on the validation data, the best model is then saved to the specified file.
         Moreover, wandb is utilized in order to monitor the training process.
         Finally, a scheduling of the learning rate is utilized as well.
 
         Parameters
         ----------
-        audio_encoder : str
-            The audio encoder used for encoding the audio. This will be used for creating a checkpoint file.
-        text_encoder : str
-            The text encoder used for encoding the text. This will be used for creating a checkpoint file.
-        version : str | int
-            The version used for creating a checkpoint file.
+        ckpt_path : str | Path
+            Path to the checkpoint where the model will be saved.
         early_stopping : bool = False
             Bool used to specify if early stopping should be applied.
 
@@ -173,9 +167,7 @@ class ClapTrainer:
         tuple[dict[str, float], dict[str, float], dict[str, float]]
             Dictionaries for the train, validation and test average metrics computed during training and/or evaluation.
         """
-        ckpt_path = Path(
-            __file__).parent.parent / "checkpoints" / f"clap_{audio_encoder}_{text_encoder}_v{version}.ckpt"
-        os.makedirs(ckpt_path.parent, exist_ok=True)
+        os.makedirs(Path(ckpt_path).parent, exist_ok=True)
 
         if self.enable_wandb_logging:
             # Tell wandb to watch the model.
@@ -221,12 +213,9 @@ class ClapTrainer:
                 f"\nEpoch: {str(self.current_epoch).zfill(len(str(self.epochs)))} || "
                 f"Training loss: {train_metrics['avg_loss']:.4f} || "
                 f"Validation loss: {val_metrics['avg_loss']:.4f} || "
-                f"Training A-T R@1: {train_metrics['avg_r1_a2t']:.4f} || "
                 f"Validation A-T R@1: {val_metrics['avg_r1_a2t']:.4f} || "
-                f"Training T-A R@1: {train_metrics['avg_r1_t2a']:.4f} || "
                 f"Validation T-A R@1: {val_metrics['avg_r1_t2a']:.4f} || "
-                f"Training T-A mAP: {train_metrics['avg_map10_t2a']:.4f} || "
-                f"Validation A-T mAP: {val_metrics['avg_map10_a2t']:.4f}"
+                f"Validation A-T mAP@10: {val_metrics['avg_map10_a2t']:.4f}"
             )
 
             # Check for early stopping.
@@ -245,8 +234,8 @@ class ClapTrainer:
                         f"\nFinal loss: {test_metrics['avg_loss']} || "
                         f"Final test T-A R@1: {test_metrics['avg_r1_t2a']:.4f} || "
                         f"Final test A-T R@1: {test_metrics['avg_r1_a2t']:.4f} || "
-                        f"Final test T-A mAP: {test_metrics['avg_map10_t2a']:.4f} || "
-                        f"Final test A-T mAP: {test_metrics['avg_map10_a2t']:.4f}"
+                        f"Final test T-A mAP@10: {test_metrics['avg_map10_t2a']:.4f} || "
+                        f"Final test A-T mAP@10: {test_metrics['avg_map10_a2t']:.4f}"
                     )
                     print("\nDone!")
 
@@ -282,8 +271,8 @@ class ClapTrainer:
             f"\nFinal loss: {test_metrics['avg_loss']} || "
             f"Final test T-A R@1: {test_metrics['avg_r1_t2a']:.4f} || "
             f"Final test A-T R@1: {test_metrics['avg_r1_a2t']:.4f} || "
-            f"Final test T-A mAP: {test_metrics['avg_map10_t2a']:.4f} || "
-            f"Final test A-T mAP: {test_metrics['avg_map10_a2t']:.4f}"
+            f"Final test T-A mAP@10: {test_metrics['avg_map10_t2a']:.4f} || "
+            f"Final test A-T mAP@10: {test_metrics['avg_map10_a2t']:.4f}"
         )
         print("\nDone!")
 
@@ -384,7 +373,7 @@ class ClapTrainer:
             similarity = self.model.compute_similarity(text_em, audio_em)
 
             # Compute loss
-            loss = self.compute_train_loss(similarity, text_em, audio_em)
+            loss = self.compute_train_loss(similarity, caption, audio)
 
             # Update metrics
             batch_metrics.update(
@@ -412,10 +401,10 @@ class ClapTrainer:
     def compute_train_loss(
             self,
             similarity: torch.Tensor,
-            text_embeddings: torch.Tensor,
-            audio_embeddings: torch.Tensor
+            caption: torch.Tensor,
+            audio: torch.Tensor
     ) -> torch.Tensor:
-        """Computes the training loss for a given similarity metrix and audio and text embeddings."""
+        """Computes the training loss for a given similarity metrix and caption and audio."""
         # Get contrastive loss
         if (1 - self.distill_weight) > 0:
             audio_target = torch.arange(similarity.shape[0]).to(similarity.device)
@@ -424,14 +413,13 @@ class ClapTrainer:
         else:
             contrastive_loss = 0
 
-        # Get distilled loss
         if self.distill_from is not None and self.distill_weight > 0:
-            target = torch.mean(
-                torch.stack(
-                    [distill_model.compute_similarity(text_embeddings, audio_embeddings) for distill_model in
-                     self.distill_from]),
-                dim=0
-            ).to(self._device)
+            similarities = []
+            for distill_model in self.distill_from:
+                text_em, audio_em, _ = distill_model(caption, audio)
+                similarities.append(self.model.compute_similarity(text_em, audio_em))
+
+            target = torch.mean(torch.stack(similarities, dim=0)).to(self._device)
 
             # Compute audio and text target probabilities
             audio_target = target.softmax(dim=1)
@@ -449,19 +437,19 @@ class ClapTrainer:
             self,
             similarity: torch.Tensor,
     ) -> torch.Tensor:
+        """Computes the evaluation loss for a given similarity metrix."""
         audio_target = torch.arange(similarity.shape[0]).to(similarity.device)
         text_target = torch.arange(similarity.shape[0]).to(similarity.device)
         contrastive_loss = self.loss_fn(similarity, audio_target, text_target)
 
         return contrastive_loss
 
+# TODO: update this classmethod to using paths
     @classmethod
     def from_ckpt(
             cls,
-            audio_encoder: str,
-            text_encoder: str,
-            cfg_version: str | int,
-            ckpt_version: str | int,
+            config_path: str | Path,
+            ckpt_path: str | Path,
             optimizer: Optimizer,
             scheduler: LRScheduler,
             train_loader: DataLoader,
@@ -480,14 +468,10 @@ class ClapTrainer:
 
         Parameters
         ----------
-        audio_encoder : str
-            The name of the audio encoder to use.
-        text_encoder : str
-            The name of the text encoder to use.
-        cfg_version : str | int
-            The version of the config file to load.
-        ckpt_version : str or int
-            The version of the checkpoint to load.
+        config_path : str | Path
+            Path to the config file to use for the model.
+        ckpt_path : str | Path
+            Path to the checkpoint file to use for the model.
         optimizer : Optimizer
             The optimizer to use for training.
         scheduler : LRScheduler
@@ -523,10 +507,8 @@ class ClapTrainer:
         --------
         **Example 1: Initializing with encoders and version**
 
-        >>> audio_encoder = "cnn14"
-        >>> text_encoder = "distilroberta-base"
-        >>> cfg_version = 1
-        >>> ckpt_version = 1
+        >>> config_path = r"path/to/config.yml"
+        >>> ckpt_path = r"path/to/ckpt.ckpt"
         >>> optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         >>> scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
         >>> train_loader = torch.utils.data.DataLoader(...)
@@ -534,10 +516,8 @@ class ClapTrainer:
         >>> test_loader = torch.utils.data.DataLoader(...)
         >>> epochs = 100
         >>> trainer = ClapTrainer.from_ckpt(
-        ...     audio_encoder=audio_encoder,
-        ...     text_encoder=text_encoder,
-        ...     cfg_version=cfg_version,
-        ...     ckpt_version=ckpt_version,
+        ...     config_path = r"path/to/config.yml",
+        ...     ckpt_path = r"path/to/ckpt.ckpt",
         ...     optimizer=optimizer,
         ...     scheduler=scheduler,
         ...     train_loader=train_loader,
@@ -553,10 +533,8 @@ class ClapTrainer:
 
         >>> try:
         ...     trainer = ClapTrainer.from_ckpt(
-        ...         audio_encoder="invalid_audio_encoder",
-        ...         text_encoder="invalid_text_encoder",
-        ...         cfg_version=999,
-        ...         ckpt_version=999,
+        ...         config_path = r"invalid/path/to/config.yml",
+        ...         ckpt_path=r"invalid/path/to/ckpt.ckpt",
         ...         optimizer=optimizer,
         ...         scheduler=scheduler,
         ...         train_loader=train_loader,
@@ -577,14 +555,12 @@ class ClapTrainer:
         """
         # Load model with specified encoder and version
         model = Clap.from_ckpt(
-            audio_encoder=audio_encoder,
-            text_encoder=text_encoder,
-            cfg_version=cfg_version,
-            ckpt_version=ckpt_version
+            config_path=config_path,
+            ckpt_path=ckpt_path
         ).to(get_target_device())
 
         # Load metrics and other hyperparameters
-        ckpt = load_clap_ckpt(audio_encoder=audio_encoder, text_encoder=text_encoder, version=ckpt_version)
+        ckpt = load_clap_ckpt(ckpt_path)
         epoch = ckpt["epoch"]
         train_metrics = ckpt["train_metrics"]
         val_metrics = ckpt["val_metrics"]
@@ -611,58 +587,3 @@ class ClapTrainer:
         trainer.current_epoch = epoch
 
         return trainer
-
-    @staticmethod
-    def compute_a2t_metrics(similarity: torch.Tensor):
-        num_audios = similarity.shape[0]
-        sorted_sim = torch.argsort(similarity, descending=True)
-
-        ranks = np.zeros(num_audios)
-        ap10 = np.zeros(num_audios)
-        for i in range(num_audios):
-            # Initialize the range for the current index (5 consecutive elements)
-            current_idx = np.arange(5 * i, 5 * i + 5)
-
-            # Get the ranks of the current indices in the sorted similarities
-            ranks_sim = np.where(np.isin(sorted_sim[i], current_idx))[0]
-
-            # Find the minimum rank for the current index
-            rank = ranks_sim.min() if ranks_sim.size > 0 else 1e20
-
-            # Get ranks that are less than 10 and adjust their values for sim_map
-            sim_ap = ranks_sim[ranks_sim < 10] + 1
-
-            # Compute mAP@10 for the current index
-            if len(sim_ap) > 0:
-                ap10[i] = np.sum(np.arange(1, len(sim_ap) + 1) / sim_ap) / 5
-            else:
-                ap10[i] = 0.0
-
-            # Store the rank
-            ranks[i] = rank
-
-        # Compute metrics
-        r1 = len(np.where(ranks < 1)[0]) / len(ranks)
-        r5 = len(np.where(ranks < 5)[0]) / len(ranks)
-        r10 = len(np.where(ranks < 10)[0]) / len(ranks)
-        map10 = np.sum(ap10) / len(ranks)
-
-        return r1, r5, r10, map10
-
-    @staticmethod
-    def compute_t2a_metrics(similarity: torch.Tensor):
-        num_audios = similarity.shape[1]
-        sorted_sim = torch.argsort(similarity, descending=True)
-
-        ranks = np.zeros(5 * num_audios)
-        for audio_idx in range(num_audios):
-            for i in range(5):
-                ranks[5 * audio_idx + i] = np.where(sorted_sim[5 * audio_idx + i] == audio_idx)[0][0]
-
-        # Compute metrics
-        r1 = len(np.where(ranks < 1)[0]) / len(ranks)
-        r5 = len(np.where(ranks < 5)[0]) / len(ranks)
-        r10 = len(np.where(ranks < 10)[0]) / len(ranks)
-        map10 = np.sum(1 / (ranks[np.where(ranks < 10)[0]] + 1)) / len(ranks)
-
-        return r1, r5, r10, map10

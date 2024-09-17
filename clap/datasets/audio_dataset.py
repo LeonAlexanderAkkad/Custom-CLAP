@@ -16,10 +16,12 @@ class AudioDataset(Dataset, ABC):
 
     def __init__(
             self,
+            base_path: str | Path,
             kind: Literal["train", "val", "test"] = "train",
             download: bool = False
     ):
         """Initialize the audio dataset and download it if needed."""
+        self.base_path = Path(base_path)
         self.kind = kind
         self.download = download
         self.audio, self.text = self.get_samples()
