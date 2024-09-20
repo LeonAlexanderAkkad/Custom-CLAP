@@ -9,7 +9,7 @@ audio:
     name: 'Cnn14'
     pretrained_abs_path: '/home/fs72538/leona/Custom-CLAP/clap/model/layers/audio_encoders/pretrained_audio_encoders/Cnn14_mAP=0.431.pth'
     sampling_rate: 44100
-    duration: 10
+    duration: 20
     use_fusion: true
     window_size: 1024
     hop_size: 320
