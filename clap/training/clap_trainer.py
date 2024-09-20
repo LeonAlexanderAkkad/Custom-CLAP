@@ -247,7 +247,7 @@ class ClapTrainer:
             self.current_epoch += 1
 
             # Save the best model
-            if np.argmin(self.val_epoch_metrics.epoch_losses) == self.current_epoch - 1:
+            if np.argmax(self.val_epoch_metrics.epoch_map10_t2a) == self.current_epoch - 1:
                 torch.save({
                     "epoch": self.current_epoch,
                     "model": self.model.state_dict(),
