@@ -27,14 +27,14 @@ projection:
 # TRAINING AND EVALUATION CONFIG
 training:
     learning_rate: 0.0001
-    batch_size: 128
+    batch_size: 64
     stage1_epochs: 20
     stage2_epochs: 20
     betas: [0.9, 0.99]
     weight_decay: 0
     warmup_steps: 150
     milestones: [150]
-    seed: 4201452944
+    seed: null
 
 # AUDIO CLASSIFIER CONFIG
 classifier:
