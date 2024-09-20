@@ -26,8 +26,8 @@ projection:
 
 # TRAINING AND EVALUATION CONFIG
 training:
-    learning_rate: 0.0001
-    batch_size: 256
+    learning_rate: 0.0001git pu
+    batch_size: 128
     stage1_epochs: 20
     stage2_epochs: 20
     betas: [0.9, 0.99]
