@@ -7,7 +7,7 @@ text:
 # AUDIO CONFIG
 audio:
     name: 'Cnn14'
-    pretrained_abs_path: 'C:\Users\leon\Documents\ML_Projects\Custom-CLAP\clap\model\layers\audio_encoders\pretrained_audio_encoders\Cnn14_mAP=0.431.pth'
+    pretrained_abs_path: '/home/fs72538/leona/Custom-CLAP/clap/model/layers/audio_encoders/pretrained_audio_encoders/Cnn14_mAP=0.431.pth'
     sampling_rate: 44100
     duration: 10
     use_fusion: true
