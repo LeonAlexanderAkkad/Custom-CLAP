@@ -87,6 +87,12 @@ parser.add_argument(
     help="The name of the run that will be logged to wandb."
 )
 parser.add_argument(
+    "--start_from_checkpoint",
+    action="store_true",
+    help="Specifies if training should start from a pretrained model stored in ckpt_path.",
+    default=False
+)
+parser.add_argument(
     "--early_stopping",
     action="store_true",
     default=False,
@@ -146,19 +152,34 @@ for config, ckpt in zip(args.distill_config_paths, args.distill_ckpt_paths):
 
 distill_from = distill_models if len(distill_models) else None
 
-trainer = ClapTrainer(
-    train_loader=train_loader,
-    val_loader=val_loader,
-    test_loader=test_loader,
-    model=clap,
-    optimizer=optimizer,
-    scheduler=scheduler,
-    loss_fn=loss_fn,
-    epochs=config["training"]["stage2_epochs"],
-    enable_wandb_logging=args.use_wandb,
-    distill_from=distill_from,
-    distill_weight=args.distill_weight
-)
+if args.start_from_checkpoint:
+    trainer = ClapTrainer.from_ckpt(
+        config_path=args.config_path,
+        ckpt_path=args.ckpt_path,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        epochs=config["training"]["stage2_epochs"],
+        enable_wandb_logging=args.use_wandb,
+        distill_from=distill_from,
+        distill_weight=args.distill_weight
+    )
+else:
+    trainer = ClapTrainer(
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        model=clap,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        loss_fn=loss_fn,
+        epochs=config["training"]["stage2_epochs"],
+        enable_wandb_logging=args.use_wandb,
+        distill_from=distill_from,
+        distill_weight=args.distill_weight
+    )
 
 trainer.train_and_eval(args.ckpt_path, early_stopping=args.early_stopping)
 

@@ -53,3 +53,4 @@ fine-tuning:
     weight_decay: 0
     warmup_steps: 31
     milestones: [31]
+    seed: null

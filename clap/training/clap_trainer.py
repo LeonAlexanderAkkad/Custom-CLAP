@@ -444,7 +444,6 @@ class ClapTrainer:
 
         return contrastive_loss
 
-# TODO: update this classmethod to using paths
     @classmethod
     def from_ckpt(
             cls,

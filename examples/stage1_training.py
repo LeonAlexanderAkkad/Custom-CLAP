@@ -62,6 +62,12 @@ parser.add_argument(
     help="The name of the run that will be logged to wandb."
 )
 parser.add_argument(
+    "--start_from_checkpoint",
+    action="store_true",
+    help="Specifies if training should start from a pretrained model stored in ckpt_path.",
+    default=False
+)
+parser.add_argument(
     "--early_stopping",
     action="store_true",
     help="Specifies if early stopping should be used during training.",
@@ -92,38 +98,51 @@ if args.use_wandb:
     config = wandb.config
 
 # Define data loaders
-train_loader = DataLoader(train_dataset, batch_size=config["fine-tuning"]["batch_size"], shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=config["fine-tuning"]["batch_size"], shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=config["fine-tuning"]["batch_size"], shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=config["training"]["batch_size"], shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
 
 # Define model, optimizer, scheduler and loss function
 clap = Clap(config).to(device)
 print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
 optimizer = optim.AdamW(
     clap.parameters(),
-    lr=config["fine-tuning"]["learning_rate"],
-    betas=config["fine-tuning"]["betas"],
-    weight_decay=config["fine-tuning"]["weight_decay"]
+    lr=config["training"]["learning_rate"],
+    betas=config["training"]["betas"],
+    weight_decay=config["training"]["weight_decay"]
 )
 scheduler = create_scheduler(
     optimizer,
-    warmup_steps=config["fine-tuning"]["warmup_steps"],
-    T_max=len(train_loader)*config["fine-tuning"]["stage1_epochs"],
-    milestones=config["fine-tuning"]["milestones"]
+    warmup_steps=config["training"]["warmup_steps"],
+    T_max=len(train_loader)*config["training"]["stage1_epochs"],
+    milestones=config["training"]["milestones"]
 )
 loss_fn = SymmetricCrossEntropyLoss()
 
-trainer = ClapTrainer(
-    train_loader=train_loader,
-    val_loader=val_loader,
-    test_loader=test_loader,
-    model=clap,
-    optimizer=optimizer,
-    scheduler=scheduler,
-    loss_fn=loss_fn,
-    epochs=config["fine-tuning"]["epochs"],
-    enable_wandb_logging=args.use_wandb
-)
+if args.start_from_checkpoint:
+    trainer = ClapTrainer.from_ckpt(
+        config_path=args.config_path,
+        ckpt_path=args.ckpt_path,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        epochs=config["training"]["stage1_epochs"],
+        enable_wandb_logging=args.use_wandb
+    )
+else:
+    trainer = ClapTrainer(
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        model=clap,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        loss_fn=loss_fn,
+        epochs=config["training"]["stage1_epochs"],
+        enable_wandb_logging=args.use_wandb
+    )
 
 trainer.train_and_eval(args.ckpt_path, early_stopping=args.early_stopping)
 

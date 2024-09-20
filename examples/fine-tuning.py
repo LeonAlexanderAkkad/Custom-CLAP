@@ -80,7 +80,7 @@ config = load_clap_config(config_path=args.config_path)
 device = get_target_device()
 
 # Load Datasets
-seed = set_random_seed(config["training"]["seed"])
+seed = set_random_seed(config["fine-tuning"]["seed"])
 train_dataset = ClapDataset(config=config, kinds=["train"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
 val_dataset = ClapDataset(config=config, kinds=["val"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
 test_dataset = ClapDataset(config=config, kinds=["test"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
@@ -97,9 +97,9 @@ if args.use_wandb:
     config = wandb.config
 
 # Define data loaders
-train_loader = DataLoader(train_dataset, batch_size=config["training"]["batch_size"], shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=config["fine-tuning"]["batch_size"], shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=config["fine-tuning"]["batch_size"], shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=config["fine-tuning"]["batch_size"], shuffle=False)
 
 # Define model, optimizer, scheduler and loss function
 clap = Clap.from_ckpt(config_path=args.config_path, ckpt_path=args.clap_ckpt_path)
@@ -107,15 +107,15 @@ clap_clf = ClapAudioClassifier(clap=clap, config=config).to(device)
 print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
 optimizer = optim.AdamW(
     clap.parameters(),
-    lr=config["training"]["learning_rate"],
-    betas=config["training"]["betas"],
-    weight_decay=config["training"]["weight_decay"]
+    lr=config["fine-tuning"]["learning_rate"],
+    betas=config["fine-tuning"]["betas"],
+    weight_decay=config["fine-tuning"]["weight_decay"]
 )
 scheduler = create_scheduler(
     optimizer,
-    warmup_steps=config["training"]["warmup_steps"],
-    T_max=len(train_loader)*config["training"]["stage1_epochs"],
-    milestones=config["training"]["milestones"]
+    warmup_steps=config["fine-tuning"]["warmup_steps"],
+    T_max=len(train_loader)*config["fine-tuning"]["stage1_epochs"],
+    milestones=config["fine-tuning"]["milestones"]
 )
 loss_fn = torch.nn.CrossEntropyLoss()
 
@@ -127,7 +127,7 @@ trainer = ClapFinetuner(
     optimizer=optimizer,
     scheduler=scheduler,
     loss_fn=loss_fn,
-    epochs=config["training"]["stage1_epochs"],
+    epochs=config["fine-tuning"]["epochs"],
     enable_wandb_logging=args.use_wandb
 )
 
