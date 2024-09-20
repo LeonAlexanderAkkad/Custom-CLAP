@@ -211,6 +211,8 @@ class ClapFinetuner:
                 torch.save({
                     "epoch": self.current_epoch,
                     "model": self.model.state_dict(),
+                    "optimizer": self.optimizer.state_dict(),
+                    "scheduler": self.scheduler.state_dict(),
                     "loss_fn": self.loss_fn,
                     "train_metrics": self.train_epoch_metrics,
                     "val_metrics": self.val_epoch_metrics
@@ -458,6 +460,8 @@ class ClapFinetuner:
         train_metrics = ckpt["train_metrics"]
         val_metrics = ckpt["val_metrics"]
         loss_fn = ckpt["loss_fn"]
+        optimizer.load_state_dict(ckpt["optimizer"])
+        scheduler.load_state_dict(ckpt["scheduler"])
 
         # Initialize trainer
         trainer = cls(
