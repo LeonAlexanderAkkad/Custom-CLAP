@@ -246,6 +246,19 @@ class ClapTrainer:
             # Update current epoch counter
             self.current_epoch += 1
 
+            # Save current model
+            current_ckpt_path = ckpt_path.split(".")[0] + f"epoch{self.current_epoch}.ckpt"
+            torch.save({
+                "epoch": self.current_epoch,
+                "model": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "scheduler": self.scheduler.state_dict(),
+                "loss_fn": self.loss_fn,
+                "train_metrics": self.train_epoch_metrics,
+                "val_metrics": self.val_epoch_metrics
+            }, current_ckpt_path)
+            print(f"\nCurrent model saved to {current_ckpt_path}")
+
             # Save the best model
             if np.argmax(self.val_epoch_metrics.epoch_map10_t2a) == self.current_epoch - 1:
                 torch.save({
@@ -257,7 +270,7 @@ class ClapTrainer:
                     "train_metrics": self.train_epoch_metrics,
                     "val_metrics": self.val_epoch_metrics
                 }, ckpt_path)
-                print(f"\nModel saved to {ckpt_path}")
+                print(f"\nBest model saved to {ckpt_path}")
 
             print("\n" + 100 * "=")
 

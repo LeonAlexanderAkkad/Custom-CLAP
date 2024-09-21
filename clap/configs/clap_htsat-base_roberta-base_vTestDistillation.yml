@@ -19,7 +19,7 @@ audio:
     num_classes: 527 # AudioSet classes
     depths: [2, 2, 6, 2]
     embed_dim: 96
-    out_size: 768
+    out_size: 1024
 
 # PROJECTION CONFIG 
 projection:
