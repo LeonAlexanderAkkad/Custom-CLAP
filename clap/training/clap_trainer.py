@@ -246,19 +246,6 @@ class ClapTrainer:
             # Update current epoch counter
             self.current_epoch += 1
 
-            # Save current model
-            current_ckpt_path = ckpt_path.split(".")[0] + f"epoch{self.current_epoch}.ckpt"
-            torch.save({
-                "epoch": self.current_epoch,
-                "model": self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-                "scheduler": self.scheduler.state_dict(),
-                "loss_fn": self.loss_fn,
-                "train_metrics": self.train_epoch_metrics,
-                "val_metrics": self.val_epoch_metrics
-            }, current_ckpt_path)
-            print(f"\nCurrent model saved to {current_ckpt_path}")
-
             # Save the best model
             if np.argmax(self.val_epoch_metrics.epoch_map10_t2a) == self.current_epoch - 1:
                 torch.save({
@@ -277,6 +264,19 @@ class ClapTrainer:
         # Get test metrics and update the epoch metrics
         test_metrics = self.eval_model(self.test_loader, test_set=True)
         self.test_epoch_metrics.update(test_metrics)
+
+        # Save last model
+        current_ckpt_path = ckpt_path.split(".")[0] + f"epoch{self.current_epoch}.ckpt"
+        torch.save({
+            "epoch": self.current_epoch,
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "scheduler": self.scheduler.state_dict(),
+            "loss_fn": self.loss_fn,
+            "train_metrics": self.train_epoch_metrics,
+            "val_metrics": self.val_epoch_metrics
+        }, current_ckpt_path)
+        print(f"\nCurrent model saved to {current_ckpt_path}")
 
         if self.enable_wandb_logging:
             # Necessary to work with model in jupyter notebook after training is done.
