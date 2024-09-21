@@ -188,14 +188,6 @@ class ClapTrainer:
                 wandb.log(
                     {
                         "train/loss": train_metrics["avg_loss"],
-                        "train/a2t/recall@1": train_metrics["avg_r1_a2t"],
-                        "train/a2t/recall@5": train_metrics["avg_r5_a2t"],
-                        "train/a2t/recall@10": train_metrics["avg_r10_a2t"],
-                        "train/a2t/mAP@10": train_metrics["avg_map10_a2t"],
-                        "train/t2a/recall@1": train_metrics["avg_r1_t2a"],
-                        "train/t2a/recall@5": train_metrics["avg_r5_t2a"],
-                        "train/t2a/recall@10": train_metrics["avg_r10_t2a"],
-                        "train/t2a/mAP@10": train_metrics["avg_map10_t2a"],
                         "val/loss": val_metrics["avg_loss"],
                         "val/a2t/recall@1": val_metrics["avg_r1_a2t"],
                         "val/a2t/recall@5": val_metrics["avg_r5_a2t"],
@@ -266,7 +258,7 @@ class ClapTrainer:
         self.test_epoch_metrics.update(test_metrics)
 
         # Save last model
-        current_ckpt_path = ckpt_path.split(".")[0] + f"epoch{self.current_epoch}.ckpt"
+        current_ckpt_path = ckpt_path.split(".")[0] + f"_epoch{self.current_epoch}.ckpt"
         torch.save({
             "epoch": self.current_epoch,
             "model": self.model.state_dict(),
