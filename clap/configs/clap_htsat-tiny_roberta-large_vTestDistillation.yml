@@ -2,7 +2,7 @@
 text:
     name: 'roberta-large'
     max_len: 77
-    out_size: 768
+    out_size: 1024
 
 # AUDIO CONFIG
 audio:
