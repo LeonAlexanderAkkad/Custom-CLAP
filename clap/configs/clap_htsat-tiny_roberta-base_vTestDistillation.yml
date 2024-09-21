@@ -1,0 +1,58 @@
+# TEXT CONFIG
+text:
+    name: 'roberta-base'
+    max_len: 77
+    out_size: 768
+
+# AUDIO CONFIG
+audio:
+    name: 'htsat-tiny'
+    pretrained_abs_path: '/home/fs72538/leona/Custom-CLAP/clap/model/layers/audio_encoders/pretrained_audio_encoders/HTSAT_AudioSet_Saved_6.ckpt'
+    sampling_rate: 48000
+    duration: 10
+    use_fusion: true
+    window_size: 1024
+    hop_size: 480
+    mel_bins: 64
+    f_min: 50
+    f_max: 14000
+    num_classes: 527 # AudioSet classes
+    depths: [2, 2, 6, 2]
+    embed_dim: 96
+    out_size: 768
+
+# PROJECTION CONFIG 
+projection:
+    hidden_size: 1024
+    out_size: 1024
+
+# TRAINING AND EVALUATION CONFIG
+training:
+    learning_rate: 0.0001
+    batch_size: 64
+    stage1_epochs: 20
+    stage2_epochs: 20
+    betas: [0.9, 0.99]
+    weight_decay: 0
+    warmup_steps: 300
+    milestones: [300]
+    seed: null
+
+# AUDIO CLASSIFIER CONFIG
+classifier:
+    in_dim: 1024
+    out_dim: 50 # ESC50 classes
+    act_fn: null
+    freeze_text: true
+    freeze_audio: false
+
+# FINE-TUNING CONFIG
+fine-tuning:
+    learning_rate: 0.0001
+    batch_size: 64
+    epochs: 5
+    betas: [0.9, 0.99]
+    weight_decay: 0
+    warmup_steps: 31
+    milestones: [31]
+    seed: null
