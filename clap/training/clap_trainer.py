@@ -207,7 +207,8 @@ class ClapTrainer:
                 f"Validation loss: {val_metrics['avg_loss']:.4f} || "
                 f"Validation A-T R@1: {val_metrics['avg_r1_a2t']:.4f} || "
                 f"Validation T-A R@1: {val_metrics['avg_r1_t2a']:.4f} || "
-                f"Validation A-T mAP@10: {val_metrics['avg_map10_a2t']:.4f}"
+                f"Validation A-T mAP@10: {val_metrics['avg_map10_a2t']:.4f} || "
+                f"Validation T-A mAP@10: {val_metrics['avg_map10_t2a']:.4f}"
             )
 
             # Check for early stopping.
