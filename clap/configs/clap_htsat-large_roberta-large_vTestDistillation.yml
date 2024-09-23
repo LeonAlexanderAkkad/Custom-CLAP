@@ -1,13 +1,13 @@
 # TEXT CONFIG
 text:
-    name: 'gpt2-medium'
+    name: 'roberta-large'
     max_len: 77
     out_size: 1024
 
 # AUDIO CONFIG
 audio:
-    name: 'htsat-tiny'
-    pretrained_abs_path: '/home/fs72538/leona/Custom-CLAP/clap/model/layers/audio_encoders/pretrained_audio_encoders/HTSAT_AudioSet_Saved_6.ckpt'
+    name: 'htsat-large'
+    pretrained_abs_path: 'C:\Users\leon\Documents\ML_Projects\Custom-CLAP/clap/model/layers/audio_encoders/pretrained_audio_encoders/HTSAT-fullset-2048d-32000hz.ckpt'
     sampling_rate: 48000
     duration: 10
     use_fusion: true
@@ -17,9 +17,9 @@ audio:
     f_min: 50
     f_max: 14000
     num_classes: 527 # AudioSet classes
-    depths: [2, 2, 6, 2]
-    embed_dim: 96
-    out_size: 768
+    depths: [2, 2, 12, 2]
+    embed_dim: 256
+    out_size: 2048
 
 # PROJECTION CONFIG 
 projection:
@@ -45,7 +45,7 @@ classifier:
     act_fn: null
     freeze_text: true
     freeze_audio: false
-    
+
 # FINE-TUNING CONFIG
 fine-tuning:
     learning_rate: 0.0001
@@ -55,3 +55,4 @@ fine-tuning:
     weight_decay: 0
     warmup_steps: 31
     milestones: [31]
+    seed: null
