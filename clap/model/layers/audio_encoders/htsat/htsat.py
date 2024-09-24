@@ -668,7 +668,7 @@ class HTSAT_Swin_Transformer(nn.Module):
 
         self.bn0 = nn.BatchNorm2d(self.mel_bins)
 
-        # split spctrogram into non-overlapping patches
+        # split spectrogram into non-overlapping patches
         self.patch_embed = PatchEmbed(
             img_size=self.spec_size, patch_size=self.patch_size, in_chans=self.in_chans,
             embed_dim=self.embed_dim, norm_layer=self.norm_layer, patch_stride=self.patch_stride, use_fusion=self.use_fusion)
