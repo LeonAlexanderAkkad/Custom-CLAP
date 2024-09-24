@@ -427,7 +427,7 @@ class ClapTrainer:
                 text_em, audio_em, _ = distill_model(caption, audio)
                 similarities.append(self.model.compute_similarity(text_em, audio_em))
 
-            target = torch.mean(torch.stack(similarities, dim=0)).to(self._device)
+            target = torch.mean(torch.stack(similarities, dim=0), dim=0).to(self._device)
 
             # Compute audio and text target probabilities
             audio_target = target.softmax(dim=1)
