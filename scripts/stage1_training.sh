@@ -16,4 +16,4 @@ export OMP_NUM_THREADS=1
 
 conda activate custom-clap
 
-python -m stage1_training.py $HOME/Custom-CLAP/clap/configs/clap_cnn14_distilroberta-base_vTestDistillation.yml $HOME/Custom-CLAP/clap/checkpoints/clap_cnn14_distilroberta-bas_vStage1_Clotho_Test.ckpt Clotho $HOME/Custom-CLAP/clap/datasets/clotho --use_wandb --project CLAP-Training --name "Stage 1 new evaluation"
+python -m stage1_training.py $HOME/Custom-CLAP/clap/configs/clap_cnn14_distilroberta-base_vTestDistillation.yml $HOME/Custom-CLAP/clap/checkpoints/clap_cnn14_distilroberta-bas_vStage1_Clotho_Test.ckpt Clotho --dataset_paths $HOME/Custom-CLAP/clap/datasets/clotho --use_wandb --project CLAP-Training --name "Stage 1 new evaluation"
