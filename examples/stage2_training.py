@@ -146,7 +146,7 @@ loss_fn = SymmetricCrossEntropyLoss()
 distill_models = []
 for config_path, ckpt_path in zip(args.distill_config_paths, args.distill_ckpt_paths):
     distill_model = Clap.from_ckpt(config_path, ckpt_path).to(device)
-    distill_model.freeze_encoders()
+    distill_model.freeze_model()
     distill_model.eval()
     distill_models.append(distill_model)
 

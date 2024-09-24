@@ -76,15 +76,17 @@ class Clap(nn.Module):
         for param in self.audio_encoder.parameters():
             param.requires_grad = True
 
-    def freeze_encoders(self):
-        """Freezes both text and audio encoders."""
+    def freeze_model(self):
+        """Freezes both text and audio encoders as well as the logit scale."""
         self.freeze_text_encoder()
         self.freeze_audio_encoder()
+        self.logit_scale.requires_grad = False
 
-    def unfreeze_encoders(self):
-        """Unfreezes both text and audio encoders."""
+    def unfreeze_model(self):
+        """Unfreezes both text and audio encoders as well as the logit scale."""
         self.unfreeze_text_encoder()
         self.unfreeze_audio_encoder()
+        self.logit_scale.requires_grad = True
 
     def compute_similarity(self, text_embedding: torch.Tensor, audio_embedding: torch.Tensor) -> torch.Tensor:
         """Computes the similarity matrix between a normalized text embedding and audio embedding."""
