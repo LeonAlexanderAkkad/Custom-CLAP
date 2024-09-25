@@ -133,7 +133,12 @@ if args.parameters is not None:
 else:
     clap = Clap(config).to(device)
 print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
-optimizer = optim.Adam(clap.parameters(), lr=config["training"]["learning_rate"])
+optimizer = optim.AdamW(
+    clap.parameters(),
+    lr=config["training"]["stage2_learning_rate"],
+    betas=config["training"]["betas"],
+    weight_decay=config["training"]["weight_decay"]
+)
 scheduler = create_scheduler(
     optimizer,
     warmup_steps=config["training"]["warmup_steps"],

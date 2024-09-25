@@ -107,7 +107,7 @@ clap = Clap(config).to(device)
 print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
 optimizer = optim.AdamW(
     clap.parameters(),
-    lr=config["training"]["learning_rate"],
+    lr=config["training"]["stage1_learning_rate"],
     betas=config["training"]["betas"],
     weight_decay=config["training"]["weight_decay"]
 )
