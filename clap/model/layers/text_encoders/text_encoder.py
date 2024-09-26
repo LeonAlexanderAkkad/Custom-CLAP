@@ -57,7 +57,7 @@ class TextEncoder(nn.Module):
 
         # We need to add a padding token for GPT2 explicitly, otherwise we cannot pad the input if needed
         if "GPT2" in self.name:
-            # This token is never used in any caption
+            # This token is rarely used
             tokenizer.add_special_tokens({"pad_token": "!"})
 
         return model, tokenizer
