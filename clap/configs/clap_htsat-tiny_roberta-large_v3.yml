@@ -39,6 +39,7 @@ training:
     warmup_steps: 300
     milestones: [300]
     seed: null
+
 # AUDIO CLASSIFIER CONFIG
 classifier:
     in_dim: 1024

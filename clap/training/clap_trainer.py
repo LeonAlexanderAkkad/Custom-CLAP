@@ -248,7 +248,9 @@ class ClapTrainer:
                     "scheduler": self.scheduler.state_dict(),
                     "loss_fn": self.loss_fn,
                     "train_metrics": self.train_epoch_metrics,
-                    "val_metrics": self.val_epoch_metrics
+                    "val_metrics": self.val_epoch_metrics,
+                    "val_step": self._global_val_step,
+                    "train_step": self._global_train_step
                 }, ckpt_path)
                 print(f"\nBest model saved to {ckpt_path}")
 
@@ -267,7 +269,9 @@ class ClapTrainer:
             "scheduler": self.scheduler.state_dict(),
             "loss_fn": self.loss_fn,
             "train_metrics": self.train_epoch_metrics,
-            "val_metrics": self.val_epoch_metrics
+            "val_metrics": self.val_epoch_metrics,
+            "val_step": self._global_val_step,
+            "train_step": self._global_train_step
         }, current_ckpt_path)
         print(f"\nCurrent model saved to {current_ckpt_path}")
 
