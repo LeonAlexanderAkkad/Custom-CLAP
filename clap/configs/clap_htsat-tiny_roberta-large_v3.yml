@@ -36,8 +36,7 @@ training:
     stage2_epochs: 20
     betas: [0.9, 0.99]
     weight_decay: 0
-    warmup_steps: 30
-    0
+    warmup_steps: 300
     milestones: [300]
     seed: null
 
