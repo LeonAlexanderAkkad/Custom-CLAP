@@ -575,6 +575,8 @@ class ClapTrainer:
         epoch = ckpt["epoch"]
         train_metrics = ckpt["train_metrics"]
         val_metrics = ckpt["val_metrics"]
+        train_step =ckpt["train_step"]
+        val_step = ckpt["val_step"]
         loss_fn = ckpt["loss_fn"]
         optimizer.load_state_dict(ckpt["optimizer"])
         scheduler.load_state_dict(ckpt["scheduler"])
@@ -598,5 +600,7 @@ class ClapTrainer:
         trainer.train_epoch_metrics = train_metrics
         trainer.val_epoch_metrics = val_metrics
         trainer.current_epoch = epoch
+        trainer._global_train_step = train_step
+        trainer._global_val_step = val_step
 
         return trainer

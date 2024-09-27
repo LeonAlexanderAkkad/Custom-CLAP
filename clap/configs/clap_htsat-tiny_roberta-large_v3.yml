@@ -10,7 +10,7 @@ audio:
     pretrained_abs_path: '/home/fs72538/leona/Custom-CLAP/clap/model/layers/audio_encoders/pretrained_audio_encoders/HTSAT_AudioSet_Saved_6.ckpt'
     sampling_rate: 48000
     duration: 10
-    use_fusion: false
+    use_fusion: true
     window_size: 1024
     hop_size: 480
     mel_bins: 64
@@ -32,11 +32,12 @@ training:
     stage1_learning_rate: 0.0001
     stage2_learning_rate: 0.00001
     batch_size: 64
-    stage1_epochs: 20
+    stage1_epochs: 40
     stage2_epochs: 20
     betas: [0.9, 0.99]
     weight_decay: 0
-    warmup_steps: 300
+    warmup_steps: 30
+    0
     milestones: [300]
     seed: null
 
