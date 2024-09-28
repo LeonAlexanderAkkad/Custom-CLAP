@@ -394,7 +394,6 @@ class ClapTrainer:
 
             # Compute the gradients and perform the optimizer and scheduler step.
             loss.backward()
-            torch.nn.utils.clip_grad_value_(self.model.parameters(), 1.0)
             self.optimizer.step()
             self.scheduler.step()
 
