@@ -7,7 +7,7 @@ text:
 # AUDIO CONFIG
 audio:
     name: 'htsat-tiny'
-    pretrained_abs_path: '/home/fs72538/leona/Custom-CLAP/clap/model/layers/audio_encoders/pretrained_audio_encoders/HTSAT_AudioSet_Saved_6.ckpt'
+    pretrained_abs_path: '/home/fs72538/leona/Custom-CLAP/clap/model/layers/audio_encoders/pretrained_audio_encoders/HTSAT-fullset-imagenet-tiny-map=0.467.ckpt'
     sampling_rate: 48000
     duration: 10
     use_fusion: true
