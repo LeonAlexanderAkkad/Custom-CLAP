@@ -398,6 +398,10 @@ class ClapTrainer:
             self.optimizer.step()
             self.scheduler.step()
 
+            # Clamp the logits just like in the paper for stability
+            with torch.no_grad():
+                self.model.logit_scale.clamp_(min=0, max=np.log(100))
+
             if self.enable_wandb_logging:
                 # Log metrics.
                 wandb.log(

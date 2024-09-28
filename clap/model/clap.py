@@ -90,8 +90,6 @@ class Clap(nn.Module):
 
     def compute_similarity(self, text_embedding: torch.Tensor, audio_embedding: torch.Tensor) -> torch.Tensor:
         """Computes the similarity matrix between a normalized text embedding and audio embedding."""
-        self.logit_scale.clamp_(min=0, max=np.log(100))
-
         similarity = self.logit_scale.exp() * text_embedding @ audio_embedding.T
 
         return similarity.T
