@@ -38,7 +38,7 @@ training:
     weight_decay: 0
     warmup_steps: 300
     milestones: [300]
-    seed: 3468095348
+    seed: 3407
 
 # AUDIO CLASSIFIER CONFIG
 classifier:
