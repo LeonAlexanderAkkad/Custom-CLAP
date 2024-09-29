@@ -35,9 +35,9 @@ training:
     stage1_epochs: 30
     stage2_epochs: 20
     betas: [0.9, 0.99]
-    weight_decay: 0
-    warmup_steps: 450
-    milestones: [450]
+    weight_decay: 0.001
+    warmup_epochs: 5
+    milestones: [5]
     seed: 3407
 
 # AUDIO CLASSIFIER CONFIG

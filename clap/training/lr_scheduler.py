@@ -47,6 +47,6 @@ def create_scheduler(optimizer: Optimizer, warmup_steps: int, T_max: int, milest
         return step / warmup_steps
 
     warm_up = LambdaLR(optimizer=optimizer, lr_lambda=__warmup_lambda)
-    decay = CosineAnnealingLR(optimizer=optimizer, T_max=T_max)
+    decay = CosineAnnealingLR(optimizer=optimizer, T_max=T_max, eta_min=1e-6)
 
     return SequentialLR(optimizer=optimizer, schedulers=[warm_up, decay], milestones=milestones)

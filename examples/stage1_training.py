@@ -113,9 +113,9 @@ optimizer = optim.AdamW(
 )
 scheduler = create_scheduler(
     optimizer,
-    warmup_steps=config["training"]["warmup_steps"],
+    warmup_steps=len(train_loader)*config["training"]["warmup_epochs"],
     T_max=len(train_loader)*config["training"]["stage1_epochs"],
-    milestones=config["training"]["milestones"]
+    milestones=[len(train_loader) * milestone for milestone in config["training"]["milestones"]]
 )
 loss_fn = SymmetricCrossEntropyLoss()
 
