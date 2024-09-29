@@ -76,15 +76,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-# Load config for audio processing and get target device
+# Load config for audio processing
 config = load_clap_config(config_path=args.config_path)
-device = get_target_device()
-
-# Load Datasets
-seed = set_random_seed(config["training"]["seed"])
-train_dataset = ClapDataset(config=config, kinds=["train"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
-val_dataset = ClapDataset(config=config, kinds=["val"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
-test_dataset = ClapDataset(config=config, kinds=["test"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
 
 # Initialize wandb
 if args.use_wandb:
@@ -97,25 +90,35 @@ if args.use_wandb:
     )
     config = wandb.config
 
+# Get target device and training config
+config_train = config["training"]["stage1"]
+device = get_target_device()
+
+# Load Datasets
+seed = set_random_seed(config_train["seed"])
+train_dataset = ClapDataset(config=config, kinds=["train"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
+val_dataset = ClapDataset(config=config, kinds=["val"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
+test_dataset = ClapDataset(config=config, kinds=["test"], datasets=args.datasets, datasets_paths=args.dataset_paths, download=args.download)
+
 # Define data loaders
-train_loader = DataLoader(train_dataset, batch_size=config["training"]["batch_size"], shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=config["training"]["batch_size"], shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=config_train["batch_size"], shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=config_train["batch_size"], shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=config_train["batch_size"], shuffle=False)
 
 # Define model, optimizer, scheduler and loss function
 clap = Clap(config).to(device)
 print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
 optimizer = optim.AdamW(
     clap.parameters(),
-    lr=config["training"]["stage1_learning_rate"],
-    betas=config["training"]["betas"],
-    weight_decay=config["training"]["weight_decay"]
+    lr=config_train["learning_rate"],
+    betas=config_train["betas"],
+    weight_decay=config_train["weight_decay"]
 )
 scheduler = create_scheduler(
     optimizer,
-    warmup_steps=len(train_loader)*config["training"]["warmup_epochs"],
-    T_max=len(train_loader)*config["training"]["stage1_epochs"],
-    milestones=[len(train_loader) * milestone for milestone in config["training"]["milestones"]]
+    warmup_steps=len(train_loader)*config_train["warmup_epochs"],
+    T_max=len(train_loader)*config_train["epochs"],
+    milestones=[len(train_loader) * milestone for milestone in config_train["milestones"]]
 )
 loss_fn = SymmetricCrossEntropyLoss()
 
@@ -128,7 +131,7 @@ if args.start_from_checkpoint:
         train_loader=train_loader,
         val_loader=val_loader,
         test_loader=test_loader,
-        epochs=config["training"]["stage1_epochs"],
+        epochs=config_train["epochs"],
         enable_wandb_logging=args.use_wandb
     )
 else:
@@ -140,7 +143,7 @@ else:
         optimizer=optimizer,
         scheduler=scheduler,
         loss_fn=loss_fn,
-        epochs=config["training"]["stage1_epochs"],
+        epochs=config_train["epochs"],
         enable_wandb_logging=args.use_wandb
     )
 
