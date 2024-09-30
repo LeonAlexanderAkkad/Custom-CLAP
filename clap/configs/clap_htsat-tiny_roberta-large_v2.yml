@@ -31,11 +31,11 @@ training:
     stage1:
         learning_rate: 0.0001
         batch_size: 64
-        epochs: 30
+        epochs: 25
         betas: [0.9, 0.99]
         weight_decay: 0.001
-        warmup_epochs: 5
-        annealing_epochs: 25
+        warmup_epochs: 1
+        annealing_epochs: 19
         seed: 3407
     stage2:
         learning_rate: 0.00001
