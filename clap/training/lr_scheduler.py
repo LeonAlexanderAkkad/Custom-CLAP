@@ -1,12 +1,12 @@
 from torch.optim import Optimizer
-from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, SequentialLR
+from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, SequentialLR, MultiplicativeLR
 
 
-def create_scheduler(optimizer: Optimizer, warmup_steps: int, T_max: int, milestones: list[int]):
+def create_scheduler(optimizer: Optimizer, warmup_steps: int, T_max: int, min_lr: float):
     """Creates a learning rate scheduler with warm-up and cosine annealing phases.
 
     This function returns a scheduler that first warms up the learning rate
-    over a specified number of steps and then follows a cosine annealing schedule.
+    over a specified number of steps and then follows a cosine annealing schedule finishing with a constant learning rate.
 
     Parameters
     ----------
@@ -16,8 +16,8 @@ def create_scheduler(optimizer: Optimizer, warmup_steps: int, T_max: int, milest
         The number of steps over which to warm up the learning rate.
     T_max : int
         The maximum number of steps for cosine annealing.
-    milestones : list of int
-        List of step indices at which the scheduler switches from warm-up to cosine annealing.
+    min_lr : float
+        The minimum learning rate for cosine annealing constant lr scheduler.
 
     Returns
     -------
@@ -34,8 +34,8 @@ def create_scheduler(optimizer: Optimizer, warmup_steps: int, T_max: int, milest
     >>> optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     >>> warmup_steps = 5
     >>> T_max = 50
-    >>> milestones = [warmup_steps]
-    >>> scheduler = create_scheduler(optimizer, warmup_steps, T_max, milestones)
+    >>> min_lr = 1e-6
+    >>> scheduler = create_scheduler(optimizer, warmup_steps, T_max, min_lr)
     >>> for epoch in range(100):
     ...     optimizer.step()
     ...     scheduler.step()
@@ -47,6 +47,7 @@ def create_scheduler(optimizer: Optimizer, warmup_steps: int, T_max: int, milest
         return step / warmup_steps
 
     warm_up = LambdaLR(optimizer=optimizer, lr_lambda=__warmup_lambda)
-    decay = CosineAnnealingLR(optimizer=optimizer, T_max=T_max, eta_min=1e-6)
+    decay = CosineAnnealingLR(optimizer=optimizer, T_max=T_max, eta_min=min_lr)
+    plateau = MultiplicativeLR(optimizer=optimizer, lr_lambda=lambda step: 1)
 
-    return SequentialLR(optimizer=optimizer, schedulers=[warm_up, decay], milestones=milestones)
+    return SequentialLR(optimizer=optimizer, schedulers=[warm_up, decay, plateau], milestones=[warmup_steps, warmup_steps + T_max + 1])
