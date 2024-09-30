@@ -117,7 +117,7 @@ optimizer = optim.AdamW(
 scheduler = create_scheduler(
     optimizer,
     warmup_steps=len(train_loader)*config_train["warmup_epochs"],
-    T_max=len(train_loader)*config_train["annealing_stop"]-1,
+    T_max=len(train_loader)*config_train["annealing_epochs"]-1,
     min_lr=1e-6
 )
 loss_fn = SymmetricCrossEntropyLoss()
