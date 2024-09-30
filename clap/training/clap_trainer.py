@@ -406,6 +406,7 @@ class ClapTrainer:
                 wandb.log(
                     {
                         "train/batch loss": loss.item(),
+                        "train/learning rater": self.optimizer.param_groups[0]["lr"],
                         "train/step": self._global_train_step
                     }
                 )
