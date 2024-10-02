@@ -26,7 +26,6 @@ projection:
     hidden_size: 1024
     out_size: 1024
 
-
 # TRAINING AND EVALUATION CONFIG
 training:
     stage1:
