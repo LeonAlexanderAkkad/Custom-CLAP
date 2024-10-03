@@ -38,7 +38,7 @@ parser.add_argument(
     help="The datasets to be used for training and evaluation. Options: [ESC50]"
 )
 parser.add_argument(
-    "dataset_paths",
+    "--dataset_paths",
     type=str,
     nargs="+",
     help="The paths to the specified datasets. The order matters and should be similar to the datasets argument."
