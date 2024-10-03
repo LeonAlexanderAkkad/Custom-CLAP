@@ -16,8 +16,8 @@ from torch.utils.data import DataLoader
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from ..metrics import BatchRetrievalMetrics, EpochRetrievalMetrics
 from ..training import create_scheduler
+from ..metrics import BatchRetrievalMetrics, EpochRetrievalMetrics
 from ..evaluate import eval_retrieval
 from ..utils import get_target_device, load_clap_ckpt
 from ..model import Clap
