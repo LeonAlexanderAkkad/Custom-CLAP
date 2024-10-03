@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-
+from ..evaluate import eval_fine_tuned_classification
 from ..metrics import BatchClassificationMetrics, EpochClassificationMetrics
 from ..utils import get_target_device, load_clf_ckpt
 from ..training import create_scheduler
@@ -270,14 +270,8 @@ class ClapFinetuner:
                 prediction = self.model(audio)
                 loss = self.loss_fn(prediction, target)
 
-                # Compute accuracy
-                acc = BatchClassificationMetrics.compute_accuracy(prediction, target)
-
                 # Update metrics
-                batch_metrics.update(
-                    loss=loss.item(),
-                    accuracy=acc
-                )
+                batch_metrics.update(loss=loss.item())
 
                 if self.enable_wandb_logging:
                     # Log batch loss and accuracy as well as predictions.
@@ -285,7 +279,6 @@ class ClapFinetuner:
                         wandb.log(
                             {
                                 "test/batch loss": loss.item(),
-                                "test/batch accuracy": acc,
                                 "test/step": self._global_test_step
                             }
                         )
@@ -294,11 +287,15 @@ class ClapFinetuner:
                         wandb.log(
                             {
                                 "val/batch loss": loss.item(),
-                                "val/batch accuracy": acc,
                                 "val/step": self._global_val_step
                             }
                         )
                         self._global_val_step += 1
+
+            # Compute accuracy
+            acc = eval_fine_tuned_classification(self.model, eval_loader)
+
+            batch_metrics.update(accuracy=acc)
 
         return batch_metrics.compute_average_metrics()
 
