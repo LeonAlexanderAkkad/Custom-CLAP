@@ -59,9 +59,9 @@ classifier:
 fine-tuning:
     learning_rate: 0.0001
     batch_size: 64
-    epochs: 5
+    epochs: 20
     betas: [0.9, 0.99]
     weight_decay: 0
-    warmup_steps: 31
-    milestones: [31]
-    seed: null
+    warmup_epochs: 1
+    annealing_epochs: 14
+    seed: 3407

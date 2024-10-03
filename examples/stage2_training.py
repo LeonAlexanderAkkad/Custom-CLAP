@@ -130,26 +130,6 @@ train_loader = DataLoader(train_dataset, batch_size=config_train["batch_size"], 
 val_loader = DataLoader(val_dataset, batch_size=config_train["batch_size"])
 test_loader = DataLoader(test_dataset, batch_size=config_train["batch_size"])
 
-# Define model, optimizer, scheduler and loss function
-if args.parameters is not None:
-    clap = Clap.from_ckpt(args.config_path, args.parameters).to(device)
-else:
-    clap = Clap(config).to(device)
-print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
-optimizer = optim.AdamW(
-    clap.parameters(),
-    lr=config_train["learning_rate"],
-    betas=config_train["betas"],
-    weight_decay=config_train["weight_decay"]
-)
-scheduler = create_scheduler(
-    optimizer,
-    warmup_steps=len(train_loader)*config_train["warmup_epochs"],
-    T_max=len(train_loader)*config_train["annealing_epochs"]-1,
-    min_lr=1e-6
-)
-loss_fn = SymmetricCrossEntropyLoss()
-
 # Get models to distill soft labels
 distill_models = []
 for config_path, ckpt_path in zip(args.distill_config_paths, args.distill_ckpt_paths):
@@ -160,12 +140,14 @@ for config_path, ckpt_path in zip(args.distill_config_paths, args.distill_ckpt_p
 
 distill_from = distill_models if len(distill_models) else None
 
+# Define model, optimizer, scheduler, loss function and trainer
 if args.start_from_checkpoint:
+    clap = Clap.from_ckpt(args.config_path, args.ckpt_path)
+    print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
     trainer = ClapTrainer.from_ckpt(
-        config_path=args.config_path,
+        model=clap,
         ckpt_path=args.ckpt_path,
-        optimizer=optimizer,
-        scheduler=scheduler,
+        config_train=config_train,
         train_loader=train_loader,
         val_loader=val_loader,
         test_loader=test_loader,
@@ -175,6 +157,27 @@ if args.start_from_checkpoint:
         distill_weight=args.distill_weight
     )
 else:
+    if args.parameters is not None:
+        clap = Clap.from_ckpt(args.config_path, args.parameters).to(device)
+    else:
+        clap = Clap(config).to(device)
+    print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
+    loss_fn = SymmetricCrossEntropyLoss()
+
+    optimizer = optim.AdamW(
+        clap.parameters(),
+        lr=config_train["learning_rate"],
+        betas=config_train["betas"],
+        weight_decay=config_train["weight_decay"]
+    )
+
+    scheduler = create_scheduler(
+        optimizer,
+        warmup_steps=len(train_loader) * config_train["warmup_epochs"],
+        T_max=len(train_loader) * config_train["annealing_epochs"] - 1,
+        min_lr=1e-6
+    )
+
     trainer = ClapTrainer(
         train_loader=train_loader,
         val_loader=val_loader,
@@ -184,9 +187,7 @@ else:
         scheduler=scheduler,
         loss_fn=loss_fn,
         epochs=config_train["epochs"],
-        enable_wandb_logging=args.use_wandb,
-        distill_from=distill_from,
-        distill_weight=args.distill_weight
+        enable_wandb_logging=args.use_wandb
     )
 
 trainer.train_and_eval(args.ckpt_path, early_stopping=args.early_stopping)

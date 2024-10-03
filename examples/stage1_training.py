@@ -105,29 +105,14 @@ train_loader = DataLoader(train_dataset, batch_size=config_train["batch_size"], 
 val_loader = DataLoader(val_dataset, batch_size=config_train["batch_size"], shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=config_train["batch_size"], shuffle=False)
 
-# Define model, optimizer, scheduler and loss function
-clap = Clap(config).to(device)
-print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
-optimizer = optim.AdamW(
-    clap.parameters(),
-    lr=config_train["learning_rate"],
-    betas=config_train["betas"],
-    weight_decay=config_train["weight_decay"]
-)
-scheduler = create_scheduler(
-    optimizer,
-    warmup_steps=len(train_loader)*config_train["warmup_epochs"],
-    T_max=len(train_loader)*config_train["annealing_epochs"]-1,
-    min_lr=1e-6
-)
-loss_fn = SymmetricCrossEntropyLoss()
-
+# Define model, optimizer, scheduler, loss function and trainer
 if args.start_from_checkpoint:
+    clap = Clap.from_ckpt(args.config_path, args.ckpt_path)
+    print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
     trainer = ClapTrainer.from_ckpt(
-        config_path=args.config_path,
+        model=clap,
         ckpt_path=args.ckpt_path,
-        optimizer=optimizer,
-        scheduler=scheduler,
+        config_train=config_train,
         train_loader=train_loader,
         val_loader=val_loader,
         test_loader=test_loader,
@@ -135,6 +120,24 @@ if args.start_from_checkpoint:
         enable_wandb_logging=args.use_wandb
     )
 else:
+    clap = Clap(config).to(device)
+    print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
+    loss_fn = SymmetricCrossEntropyLoss()
+
+    optimizer = optim.AdamW(
+        clap.parameters(),
+        lr=config_train["learning_rate"],
+        betas=config_train["betas"],
+        weight_decay=config_train["weight_decay"]
+    )
+
+    scheduler = create_scheduler(
+        optimizer,
+        warmup_steps=len(train_loader)*config_train["warmup_epochs"],
+        T_max=len(train_loader)*config_train["annealing_epochs"]-1,
+        min_lr=1e-6
+    )
+
     trainer = ClapTrainer(
         train_loader=train_loader,
         val_loader=val_loader,

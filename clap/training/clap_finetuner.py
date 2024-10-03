@@ -4,6 +4,8 @@ from pathlib import Path
 
 import numpy as np
 
+from torch import optim
+
 from tqdm import tqdm
 
 import wandb
@@ -17,6 +19,7 @@ from torch.optim.lr_scheduler import LRScheduler
 
 from ..metrics import BatchClassificationMetrics, EpochClassificationMetrics
 from ..utils import get_target_device, load_clf_ckpt
+from ..training import create_scheduler
 from ..model import ClapAudioClassifier
 
 
@@ -352,10 +355,9 @@ class ClapFinetuner:
     @classmethod
     def from_ckpt(
             cls,
-            config_path: str | Path,
+            model: ClapAudioClassifier,
+            config_fine_tune: dict,
             ckpt_path: str | Path,
-            optimizer: Optimizer,
-            scheduler: LRScheduler,
             train_loader: DataLoader,
             val_loader: DataLoader,
             test_loader: DataLoader,
@@ -364,20 +366,18 @@ class ClapFinetuner:
     ) -> "ClapFinetuner":
         """Create an instance of ClapFinetuner from a checkpoint file (e.g., a ckpt file).
 
-        This method loads a ClapAudioClassifier model and its associated training state from a checkpoint file.
+        This method loads a ClapAudioClassifier's associated training state from a checkpoint file.
         It initializes the ClapFinetuner with the loaded model, optimizer, scheduler, data loaders,
         and other training parameters.
 
         Parameters
         ----------
-        config_path : str | Path
-            Path to the config file.
+        model : ClapFinetuner
+            The ClapFinetuner to be trained.
+        config_fine_tune : dict
+            A dictionary containing the fine-tuning parameters of the ClapFinetuner.
         ckpt_path : str | Path
             Path to the checkpoint file.
-        optimizer : Optimizer
-            The optimizer to use for training.
-        scheduler : LRScheduler
-            The learning rate scheduler to use for training.
         train_loader : DataLoader
             The data loader for the training dataset.
         val_loader : DataLoader
@@ -400,67 +400,30 @@ class ClapFinetuner:
             If the checkpoint file is not found.
         KeyError
             If the checkpoint file is missing required keys.
-
-        Examples
-        --------
-        **Example 1: Initializing correct paths**
-
-        >>> config_path = "path/to/config.yml"
-        >>> ckpt_path = "path/to/checkpoint.ckpt"
-        >>> optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        >>> scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-        >>> train_loader = torch.utils.data.DataLoader(...)
-        >>> val_loader = torch.utils.data.DataLoader(...)
-        >>> test_loader = torch.utils.data.DataLoader(...)
-        >>> epochs = 100
-        >>> trainer = ClapFinetuner.from_ckpt(
-        ...     config_path=config_path,
-        ...     ckpt_path=ckpt_path,
-        ...     optimizer=optimizer,
-        ...     scheduler=scheduler,
-        ...     train_loader=train_loader,
-        ...     val_loader=val_loader,
-        ...     test_loader=test_loader,
-        ...     epochs=epochs,
-        ...     enable_wandb_logging=False
-        ... )
-
-        **Example 2: Handling errors**
-
-        Ensure the checkpoint file path is correct and the file is properly formatted:
-
-        >>> try:
-        ...     trainer = ClapFinetuner.from_ckpt(
-        ...         config_path="invalid/path/to/config.yml",
-        ...         ckpt_path="invalid/path/to/checkpoint.ckpt",
-        ...         optimizer=optimizer,
-        ...         scheduler=scheduler,
-        ...         train_loader=train_loader,
-        ...         val_loader=val_loader,
-        ...         test_loader=test_loader,
-        ...         epochs=epochs,
-        ...         enable_wandb_logging=False
-        ...     )
-        ... except FileNotFoundError:
-        ...     print("Checkpoint file not found.")
-        ... except KeyError as e:
-        ...     print(f"Checkpoint file is missing required key: {e}")
-
-        Notes
-        -----
-        - The method `load_ckpt` is responsible for finding and loading the checkpoint file.
-        - The method `Clap.from_ckpt` is used to load the Clap model from the checkpoint.
         """
-        # Load model with specified encoder and version
-        model = ClapAudioClassifier.from_ckpt(config_path, ckpt_path).to(get_target_device())
-
         # Load metrics and other hyperparameters
         ckpt = load_clf_ckpt(ckpt_path)
         epoch = ckpt["epoch"]
         train_metrics = ckpt["train_metrics"]
         val_metrics = ckpt["val_metrics"]
         loss_fn = ckpt["loss_fn"]
+
+        # Load optimizer
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config_fine_tune["learning_rate"],
+            betas=config_fine_tune["betas"],
+            weight_decay=config_fine_tune["weight_decay"]
+        )
         optimizer.load_state_dict(ckpt["optimizer"])
+
+        # Load scheduler
+        scheduler = create_scheduler(
+            optimizer,
+            warmup_steps=len(train_loader) * config_fine_tune["warmup_epochs"],
+            T_max=len(train_loader) * config_fine_tune["annealing_epochs"] - 1,
+            min_lr=1e-6
+        )
         scheduler.load_state_dict(ckpt["scheduler"])
 
         # Initialize trainer
