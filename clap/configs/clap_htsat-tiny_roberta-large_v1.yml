@@ -42,10 +42,10 @@ training:
         batch_size: 64
         epochs: 20
         betas: [ 0.9, 0.99 ]
-        weight_decay: 0.01
+        weight_decay: 0
         warmup_epochs: 1
         annealing_epochs: 14
-        seed: 3407
+        seed: 3468095348
 
 # AUDIO CLASSIFIER CONFIG
 classifier:
