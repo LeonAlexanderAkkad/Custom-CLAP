@@ -187,7 +187,9 @@ else:
         scheduler=scheduler,
         loss_fn=loss_fn,
         epochs=config_train["epochs"],
-        enable_wandb_logging=args.use_wandb
+        enable_wandb_logging=args.use_wandb,
+        distill_from=distill_from,
+        distill_weight=args.distill_weight
     )
 
 trainer.train_and_eval(args.ckpt_path, early_stopping=args.early_stopping)
