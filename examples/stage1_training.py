@@ -107,7 +107,7 @@ test_loader = DataLoader(test_dataset, batch_size=config_train["batch_size"], sh
 
 # Define model, optimizer, scheduler, loss function and trainer
 if args.start_from_checkpoint:
-    clap = Clap.from_ckpt(args.config_path, args.ckpt_path)
+    clap = Clap.from_ckpt(args.config_path, args.ckpt_path).to(device)
     print(f"Number of parameters to train: {sum(p.numel() for p in clap.parameters())}")
     trainer = ClapTrainer.from_ckpt(
         model=clap,
