@@ -423,6 +423,11 @@ class ClapFinetuner:
         )
         scheduler.load_state_dict(ckpt["scheduler"])
 
+        for param_group in optimizer.param_groups:
+            # Get the last learning rate from the loaded scheduler state
+            last_lr = scheduler._last_lr
+            param_group['lr'] = last_lr[0]
+
         # Initialize trainer
         trainer = cls(
             train_loader=train_loader,
