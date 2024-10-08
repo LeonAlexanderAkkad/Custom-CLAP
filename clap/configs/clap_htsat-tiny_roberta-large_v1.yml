@@ -40,11 +40,11 @@ training:
     stage2:
         learning_rate: 0.00005
         batch_size: 64
-        epochs: 20
+        epochs: 25
         betas: [ 0.9, 0.99 ]
         weight_decay: 0
         warmup_epochs: 1
-        annealing_epochs: 14
+        annealing_epochs: 19
         seed: 3468095348
 
 # AUDIO CLASSIFIER CONFIG
