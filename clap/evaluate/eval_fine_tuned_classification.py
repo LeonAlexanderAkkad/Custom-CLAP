@@ -36,7 +36,9 @@ def eval_fine_tuned_classification(model: ClapAudioClassifier, eval_loader: Data
             targets.append(target)
 
     # Compute accuracy
-    acc = BatchClassificationMetrics.compute_accuracy(prediction, target)
+    predictions = torch.cat(predictions)
+    targets = torch.cat(targets)
+    acc = BatchClassificationMetrics.compute_accuracy(predictions, targets)
 
     # Update metrics
     batch_metrics.update(accuracy=acc)
