@@ -64,4 +64,4 @@ fine-tuning:
     weight_decay: 0
     warmup_epochs: 0
     annealing_epochs: 100
-    seed: 3407
+    seed: 3468095348
