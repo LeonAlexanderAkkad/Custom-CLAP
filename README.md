@@ -11,7 +11,7 @@ Please note: In order to use a pretrained audio encoder for training, please dow
 
 **Pretrained Audio Encoders:**
 
-[HTS-AT checkpoint](https://drive.google.com/file/d/1Nj2OrJiTrn4F7mZxIW1JTUJVpF8MdFB3/view?usp=drive_link) | [CNN14 checkpoint](https://zenodo.org/records/3987831/files/Cnn14_mAP%3D0.431.pth?download=1)
+[HTS-AT checkpoint](https://drive.google.com/drive/folders/1SMQyzJvc6DwJNuhQ_WI8tlCFL5HG2vk6) | [CNN14 checkpoint](https://zenodo.org/records/3987831/files/Cnn14_mAP%3D0.431.pth?download=1)
 
 ## Setup
 This package can be easily installed with Conda. To do so, download this repository and do the following:
